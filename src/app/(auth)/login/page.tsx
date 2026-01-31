@@ -25,9 +25,9 @@ export default function LoginPage() {
 
   // Demo accounts for testing
   const demoAccounts = [
-    { email: 'admin@distram.fr', password: 'demo123', role: 'Admin' },
-    { email: 'commercial@distram.fr', password: 'demo123', role: 'Commercial' },
-    { email: 'livreur@distram.fr', password: 'demo123', role: 'Livreur' },
+    { email: 'admin@distram.fr', password: 'Demo123!', role: 'Admin' },
+    { email: 'commercial@distram.fr', password: 'Demo123!', role: 'Commercial' },
+    { email: 'livreur@distram.fr', password: 'Demo123!', role: 'Livreur' },
   ];
 
   const fillDemo = (email: string, password: string) => {
