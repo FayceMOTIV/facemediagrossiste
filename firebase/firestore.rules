@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    function isCommercial() {
+      return isAuthenticated() && getUserRole() in ['admin', 'commercial'];
+    }
+
+    function isLivreur() {
+      return isAuthenticated() && getUserRole() in ['admin', 'livreur'];
+    }
+
+    // Users - admin only write
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Clients - commerciaux et admins
+    match /clients/{clientId} {
+      allow read: if isAuthenticated();
+      allow write: if isCommercial();
+    }
+
+    // Products - lecture tous, écriture admin
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Orders - tous authentifiés peuvent lire leurs commandes
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isCommercial() || isLivreur();
+      allow delete: if isAdmin();
+    }
+
+    // Deliveries - livreurs et admins
+    match /deliveries/{deliveryId} {
+      allow read: if isAuthenticated();
+      allow write: if isLivreur();
+    }
+
+    // Quotes - commerciaux
+    match /quotes/{quoteId} {
+      allow read, write: if isCommercial();
+    }
+
+    // Alerts - tous peuvent lire, admins écrivent
+    match /alerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Prospects - commerciaux
+    match /prospects/{prospectId} {
+      allow read, write: if isCommercial();
+    }
+
+    // Churn Analyses - commerciaux et admins
+    match /churn_analyses/{analysisId} {
+      allow read: if isAuthenticated();
+      allow write: if isCommercial();
+    }
+
+    // Route Optimizations - livreurs et admins
+    match /route_optimizations/{routeId} {
+      allow read: if isAuthenticated();
+      allow write: if isLivreur();
+    }
+
+    // Stock Predictions - admin only
+    match /stock_predictions/{predictionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Demo requests - PUBLIC (site vitrine)
+    match /demo_requests/{requestId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+  }
+}

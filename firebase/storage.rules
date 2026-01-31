@@ -1,0 +1,56 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helpers
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated();
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isPdf() {
+      return request.resource.contentType == 'application/pdf';
+    }
+
+    function isValidSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB max
+    }
+
+    // Menus scannés
+    match /menus/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isImage() && isValidSize();
+    }
+
+    // Images produits
+    match /products/{fileName} {
+      allow read: if true; // Public
+      allow write: if isAdmin() && isImage() && isValidSize();
+    }
+
+    // Devis PDF
+    match /quotes/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isPdf() && isValidSize();
+    }
+
+    // Documents divers
+    match /documents/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidSize();
+    }
+
+    // Avatars utilisateurs
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId && isImage() && isValidSize();
+    }
+  }
+}
