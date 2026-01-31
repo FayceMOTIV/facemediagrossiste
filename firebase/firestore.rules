@@ -23,10 +23,14 @@ service cloud.firestore {
       return isAuthenticated() && getUserRole() in ['admin', 'livreur'];
     }
 
-    // Users - admin only write
+    // Users - lecture pour tous les auth, création pour soi-même, mise à jour admin
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      // Permettre à un utilisateur de créer son propre document (première connexion)
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Permettre à un utilisateur de modifier son profil OU admin peut tout modifier
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // Clients - commerciaux et admins

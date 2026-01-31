@@ -21,7 +21,24 @@ export interface AppUser extends User {
 
 export const loginWithEmail = async (email: string, password: string): Promise<AppUser> => {
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+  const userDocRef = doc(db, 'users', userCredential.user.uid);
+  const userDoc = await getDoc(userDocRef);
+
+  // Si le document n'existe pas, le créer avec des valeurs par défaut
+  if (!userDoc.exists()) {
+    const defaultUserData = {
+      email: userCredential.user.email,
+      displayName: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'Utilisateur',
+      role: 'commercial' as UserRole, // Rôle par défaut
+      depot: 'lyon',
+      telephone: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await setDoc(userDocRef, defaultUserData);
+    return { ...userCredential.user, ...defaultUserData } as AppUser;
+  }
+
   return { ...userCredential.user, ...userDoc.data() } as AppUser;
 };
 
@@ -52,11 +69,24 @@ export const resetPassword = (email: string) => sendPasswordResetEmail(auth, ema
 export const onAuthChange = (callback: (user: AppUser | null) => void) => {
   return onAuthStateChanged(auth, async (user) => {
     if (user) {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+
       if (userDoc.exists()) {
         callback({ ...user, ...userDoc.data() } as AppUser);
       } else {
-        callback(user as AppUser);
+        // Créer le document utilisateur s'il n'existe pas
+        const defaultUserData = {
+          email: user.email,
+          displayName: user.displayName || user.email?.split('@')[0] || 'Utilisateur',
+          role: 'commercial' as UserRole,
+          depot: 'lyon',
+          telephone: '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        await setDoc(userDocRef, defaultUserData);
+        callback({ ...user, ...defaultUserData } as AppUser);
       }
     } else {
       callback(null);
