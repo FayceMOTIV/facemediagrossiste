@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,76 +15,65 @@ import {
   FileText,
   ShoppingCart,
   Sparkles,
-  ArrowRight,
   Image as ImageIcon,
-  Zap
+  Zap,
+  Package,
+  ChefHat,
+  Store
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
-interface DetectedProduct {
+interface ProduitRecommande {
   ref: string;
   nom: string;
+  categorie: string;
   quantite: number;
   unite: string;
   prixUnitaire: number;
-  prixTotal: number;
+  totalHT: number;
+  raison: string;
+  obligatoire: boolean;
+}
+
+interface PlatDetecte {
+  nom: string;
+  description?: string;
+  categorie: string;
+  ingredients: string[];
+  prix?: number;
+  ventesEstimees: number;
+  confiance: number;
 }
 
 interface ScanResult {
-  platsDetectes: Array<{
-    nom: string;
-    quantiteEstimee: number;
-    produitsNecessaires: DetectedProduct[];
-  }>;
+  success: boolean;
+  tempsAnalyse: number;
+  restaurant: {
+    type: string;
+    specialite?: string;
+  };
+  platsDetectes: PlatDetecte[];
+  produitsRecommandes: ProduitRecommande[];
+  emballagesRecommandes: ProduitRecommande[];
+  totalProduitsHT: number;
+  totalEmballagesHT: number;
   totalHT: number;
   totalTTC: number;
   margeEstimee: number;
-  tempsAnalyse: number;
+  notes: string[];
+  erreur?: string;
 }
 
+const SCAN_API_URL = 'https://us-central1-facemediagrossiste.cloudfunctions.net/scanMenu';
+
 export default function ScanMenuPage() {
+  const router = useRouter();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'produits' | 'emballages'>('produits');
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Demo result for showcase
-  const demoResult: ScanResult = {
-    platsDetectes: [
-      {
-        nom: 'Kebab classique',
-        quantiteEstimee: 150,
-        produitsNecessaires: [
-          { ref: 'VIA-001', nom: 'Broche kebab boeuf/veau 10kg', quantite: 3, unite: 'pièce', prixUnitaire: 75, prixTotal: 225 },
-          { ref: 'PAI-001', nom: 'Pain pita 16cm x100', quantite: 2, unite: 'carton', prixUnitaire: 18, prixTotal: 36 },
-          { ref: 'SAU-001', nom: 'Sauce blanche 5L', quantite: 2, unite: 'bidon', prixUnitaire: 12, prixTotal: 24 },
-        ]
-      },
-      {
-        nom: 'French Tacos L',
-        quantiteEstimee: 80,
-        produitsNecessaires: [
-          { ref: 'PAI-010', nom: 'Tortilla tacos 30cm x72', quantite: 2, unite: 'carton', prixUnitaire: 24, prixTotal: 48 },
-          { ref: 'SAU-010', nom: 'Sauce fromagère 5L', quantite: 2, unite: 'bidon', prixUnitaire: 16, prixTotal: 32 },
-          { ref: 'FRI-001', nom: 'Frites 9mm surgelées 10kg', quantite: 2, unite: 'carton', prixUnitaire: 14, prixTotal: 28 },
-        ]
-      },
-      {
-        nom: 'Burger Double',
-        quantiteEstimee: 60,
-        produitsNecessaires: [
-          { ref: 'VIA-050', nom: 'Steak haché 100g x50', quantite: 3, unite: 'carton', prixUnitaire: 42, prixTotal: 126 },
-          { ref: 'PAI-020', nom: 'Pain burger sésame x48', quantite: 2, unite: 'carton', prixUnitaire: 12, prixTotal: 24 },
-          { ref: 'FRO-010', nom: 'Cheddar tranches x200', quantite: 1, unite: 'boîte', prixUnitaire: 18, prixTotal: 18 },
-        ]
-      },
-    ],
-    totalHT: 561,
-    totalTTC: 673.20,
-    margeEstimee: 68,
-    tempsAnalyse: 2.3,
-  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,28 +94,68 @@ export default function ScanMenuPage() {
     setIsAnalyzing(true);
     setError(null);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    try {
+      const response = await fetch(SCAN_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image: selectedImage }),
+      });
 
-    // In production, this would call the actual AI service
-    // const base64 = selectedImage.split(',')[1];
-    // const result = await analyzeMenuWithAI(base64);
+      if (!response.ok) {
+        throw new Error('Erreur lors de l\'analyse');
+      }
 
-    setResult(demoResult);
-    setIsAnalyzing(false);
+      const data = await response.json();
+
+      if (data.success) {
+        setResult(data);
+      } else {
+        setError(data.erreur || 'Erreur lors de l\'analyse du menu');
+      }
+    } catch (err: any) {
+      console.error('Erreur:', err);
+      setError(err.message || 'Erreur de connexion au serveur');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleCreateQuote = () => {
-    // Navigate to quote creation with pre-filled data
-    console.log('Creating quote with:', result);
+    if (!result) return;
+
+    // Stocker les données du scan dans localStorage pour la page devis
+    const devisData = {
+      source: 'scan_menu',
+      restaurant: result.restaurant,
+      platsDetectes: result.platsDetectes,
+      produitsRecommandes: result.produitsRecommandes,
+      emballagesRecommandes: result.emballagesRecommandes,
+      totaux: {
+        totalProduitsHT: result.totalProduitsHT,
+        totalEmballagesHT: result.totalEmballagesHT,
+        totalHT: result.totalHT,
+        totalTTC: result.totalTTC,
+      }
+    };
+    localStorage.setItem('scanMenuDevisData', JSON.stringify(devisData));
+    router.push('/devis/nouveau');
   };
 
   const handleCreateOrder = () => {
-    // Navigate to order creation with pre-filled data
     console.log('Creating order with:', result);
   };
 
-  const allProducts = result?.platsDetectes.flatMap(p => p.produitsNecessaires) || [];
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'burger': return '🍔';
+      case 'kebab': return '🥙';
+      case 'tacos': return '🌮';
+      case 'pizza': return '🍕';
+      default: return '🍽️';
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -143,14 +173,14 @@ export default function ScanMenuPage() {
                 <Sparkles className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-xl font-bold mb-1">Comment ça marche ?</h2>
+                <h2 className="text-xl font-bold mb-1">Comment ca marche ?</h2>
                 <p className="text-orange-100">
-                  1. Photographiez un menu → 2. L'IA identifie les plats → 3. Générez un devis personnalisé
+                  1. Photographiez un menu → 2. L'IA GPT-4o identifie les plats et ingredients → 3. Generez un devis personnalise
                 </p>
               </div>
               <div className="ml-auto hidden md:flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
                 <Zap className="w-5 h-5" />
-                <span className="font-medium">Temps moyen: 30 secondes</span>
+                <span className="font-medium">Propulse par GPT-4o Vision</span>
               </div>
             </div>
           </CardContent>
@@ -162,7 +192,7 @@ export default function ScanMenuPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-orange-600" />
-                Télécharger un menu
+                Telecharger un menu
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -184,13 +214,13 @@ export default function ScanMenuPage() {
                     <Upload className="w-8 h-8 text-orange-600" />
                   </div>
                   <p className="text-lg font-medium text-gray-900 mb-2">
-                    Cliquez pour télécharger
+                    Cliquez pour telecharger
                   </p>
                   <p className="text-sm text-gray-500">
-                    ou glissez-déposez une image de menu
+                    ou glissez-deposez une image de menu
                   </p>
                   <p className="text-xs text-gray-400 mt-2">
-                    PNG, JPG jusqu'à 10MB
+                    PNG, JPG jusqu'a 10MB
                   </p>
                 </div>
               ) : (
@@ -198,13 +228,14 @@ export default function ScanMenuPage() {
                   <div className="relative rounded-xl overflow-hidden bg-gray-100">
                     <img
                       src={selectedImage}
-                      alt="Menu uploadé"
+                      alt="Menu uploade"
                       className="w-full h-64 object-contain"
                     />
                     <button
                       onClick={() => {
                         setSelectedImage(null);
                         setResult(null);
+                        setError(null);
                       }}
                       className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
                     >
@@ -221,12 +252,12 @@ export default function ScanMenuPage() {
                     {isAnalyzing ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Analyse en cours...
+                        Analyse GPT-4o en cours...
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-5 h-5" />
-                        Analyser avec l'IA
+                        Analyser avec GPT-4o Vision
                       </>
                     )}
                   </Button>
@@ -247,14 +278,14 @@ export default function ScanMenuPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
-                Résultats de l'analyse
+                Resultats de l'analyse
               </CardTitle>
             </CardHeader>
             <CardContent>
               {!result && !isAnalyzing && (
                 <div className="text-center py-12 text-gray-500">
                   <ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <p>Téléchargez un menu pour commencer l'analyse</p>
+                  <p>Telechargez un menu pour commencer l'analyse</p>
                 </div>
               )}
 
@@ -263,39 +294,75 @@ export default function ScanMenuPage() {
                   <div className="w-16 h-16 mx-auto mb-4 bg-orange-100 rounded-full flex items-center justify-center">
                     <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
                   </div>
-                  <p className="text-gray-900 font-medium">Analyse du menu en cours...</p>
-                  <p className="text-sm text-gray-500 mt-1">Identification des plats et calcul des quantités</p>
+                  <p className="text-gray-900 font-medium">Analyse GPT-4o Vision en cours...</p>
+                  <p className="text-sm text-gray-500 mt-1">Identification precise des plats et calcul des quantites</p>
                 </div>
               )}
 
-              {result && (
+              {result && result.success && (
                 <div className="space-y-6">
+                  {/* Restaurant type */}
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{getTypeIcon(result.restaurant.type)}</span>
+                      <div>
+                        <p className="font-medium text-blue-900 capitalize">
+                          Restaurant {result.restaurant.type}
+                        </p>
+                        {result.restaurant.specialite && (
+                          <p className="text-sm text-blue-700">{result.restaurant.specialite}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Summary */}
                   <div className="bg-green-50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="w-5 h-5 text-green-600" />
                       <span className="font-medium text-green-900">
-                        Analyse terminée en {result.tempsAnalyse}s
+                        Analyse terminee en {result.tempsAnalyse.toFixed(1)}s
                       </span>
                     </div>
                     <p className="text-sm text-green-700">
-                      {result.platsDetectes.length} types de plats détectés, {allProducts.length} produits recommandés
+                      {result.platsDetectes.length} plats detectes, {result.produitsRecommandes.length} produits + {result.emballagesRecommandes.length} emballages recommandes
                     </p>
                   </div>
 
+                  {/* Notes */}
+                  {result.notes && result.notes.length > 0 && (
+                    <div className="bg-yellow-50 rounded-xl p-4">
+                      <p className="text-sm font-medium text-yellow-800 mb-2">Notes de l'analyse :</p>
+                      <ul className="text-sm text-yellow-700 space-y-1">
+                        {result.notes.map((note, i) => (
+                          <li key={i}>• {note}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* Detected dishes */}
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Plats détectés</h4>
-                    <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <ChefHat className="w-4 h-4" />
+                      Plats detectes
+                    </h4>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
                       {result.platsDetectes.map((plat, index) => (
                         <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium text-gray-900">{plat.nom}</p>
                             <p className="text-sm text-gray-500">
-                              ~{plat.quantiteEstimee} ventes/semaine estimées
+                              {plat.categorie} • ~{plat.ventesEstimees} ventes/sem • {Math.round(plat.confiance * 100)}% confiance
                             </p>
+                            {plat.ingredients && plat.ingredients.length > 0 && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                {plat.ingredients.slice(0, 5).join(', ')}
+                                {plat.ingredients.length > 5 && '...'}
+                              </p>
+                            )}
                           </div>
-                          <Badge>{plat.produitsNecessaires.length} produits</Badge>
+                          <Badge variant="outline" className="capitalize ml-2">{plat.categorie}</Badge>
                         </div>
                       ))}
                     </div>
@@ -303,6 +370,16 @@ export default function ScanMenuPage() {
 
                   {/* Totals */}
                   <div className="border-t pt-4">
+                    <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xl font-bold text-gray-900">{formatCurrency(result.totalProduitsHT)}</p>
+                        <p className="text-sm text-gray-500">Produits HT</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xl font-bold text-gray-900">{formatCurrency(result.totalEmballagesHT)}</p>
+                        <p className="text-sm text-gray-500">Emballages HT</p>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-4 text-center">
                       <div>
                         <p className="text-2xl font-bold text-gray-900">{formatCurrency(result.totalHT)}</p>
@@ -314,7 +391,7 @@ export default function ScanMenuPage() {
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-green-600">{result.margeEstimee}%</p>
-                        <p className="text-sm text-gray-500">Marge estimée</p>
+                        <p className="text-sm text-gray-500">Marge estimee</p>
                       </div>
                     </div>
                   </div>
@@ -327,7 +404,7 @@ export default function ScanMenuPage() {
                       className="flex-1 gap-2"
                     >
                       <FileText className="w-4 h-4" />
-                      Créer un devis
+                      Creer un devis
                     </Button>
                     <Button
                       onClick={handleCreateOrder}
@@ -343,47 +420,135 @@ export default function ScanMenuPage() {
           </Card>
         </div>
 
-        {/* Products table */}
-        {result && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Détail des produits recommandés</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unité</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P.U. HT</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total HT</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {allProducts.map((product, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-mono text-gray-500">{product.ref}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{product.nom}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900">{product.quantite}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{product.unite}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(product.prixUnitaire)}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">{formatCurrency(product.prixTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-50">
-                    <tr>
-                      <td colSpan={5} className="px-4 py-3 text-sm font-medium text-gray-900 text-right">Total HT</td>
-                      <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">{formatCurrency(result.totalHT)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Products & Emballages tables */}
+        {result && result.success && (
+          <>
+            {/* Tab buttons */}
+            <div className="flex gap-2 mt-6 mb-4">
+              <Button
+                variant={activeTab === 'produits' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('produits')}
+                className={activeTab === 'produits' ? 'bg-orange-600' : ''}
+              >
+                <Store className="w-4 h-4 mr-2" />
+                Produits ({result.produitsRecommandes.length})
+              </Button>
+              <Button
+                variant={activeTab === 'emballages' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('emballages')}
+                className={activeTab === 'emballages' ? 'bg-orange-600' : ''}
+              >
+                <Package className="w-4 h-4 mr-2" />
+                Emballages ({result.emballagesRecommandes.length})
+              </Button>
+            </div>
+
+            {/* Products table */}
+            {activeTab === 'produits' && result.produitsRecommandes.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Store className="w-5 h-5" />
+                    Detail des produits recommandes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ref</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raison</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qte</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unite</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P.U. HT</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total HT</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {result.produitsRecommandes.map((product, index) => (
+                          <tr key={index} className={`hover:bg-gray-50 ${!product.obligatoire ? 'opacity-60' : ''}`}>
+                            <td className="px-4 py-3 text-sm font-mono text-gray-500">{product.ref}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {product.nom}
+                              {!product.obligatoire && (
+                                <Badge variant="outline" className="ml-2 text-xs">Optionnel</Badge>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{product.raison}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{product.quantite}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{product.unite}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(product.prixUnitaire)}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">{formatCurrency(product.totalHT)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={6} className="px-4 py-3 text-sm font-medium text-gray-900 text-right">Total Produits HT</td>
+                          <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">{formatCurrency(result.totalProduitsHT)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Emballages table */}
+            {activeTab === 'emballages' && result.emballagesRecommandes.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="w-5 h-5" />
+                    Detail des emballages recommandes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ref</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Emballage</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raison</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qte</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unite</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P.U. HT</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total HT</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {result.emballagesRecommandes.map((emballage, index) => (
+                          <tr key={index} className={`hover:bg-gray-50 ${!emballage.obligatoire ? 'opacity-60' : ''}`}>
+                            <td className="px-4 py-3 text-sm font-mono text-gray-500">{emballage.ref}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {emballage.nom}
+                              {!emballage.obligatoire && (
+                                <Badge variant="outline" className="ml-2 text-xs">Optionnel</Badge>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{emballage.raison}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{emballage.quantite}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{emballage.unite}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{formatCurrency(emballage.prixUnitaire)}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">{formatCurrency(emballage.totalHT)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={6} className="px-4 py-3 text-sm font-medium text-gray-900 text-right">Total Emballages HT</td>
+                          <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">{formatCurrency(result.totalEmballagesHT)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
       </div>
     </div>
