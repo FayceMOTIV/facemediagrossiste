@@ -46,17 +46,17 @@ export default function DevisPage() {
   ).slice(0, 5);
 
   const addProduct = (product: typeof CATALOGUE_DISTRAM[0]) => {
-    const existingLigne = lignes.find(l => l.produitId === product.id);
+    const existingLigne = lignes.find(l => l.produitId === product.ref);
     if (existingLigne) {
       setLignes(lignes.map(l =>
-        l.produitId === product.id
+        l.produitId === product.ref
           ? { ...l, quantite: l.quantite + 1 }
           : l
       ));
     } else {
       setLignes([...lignes, {
         id: Date.now().toString(),
-        produitId: product.id,
+        produitId: product.ref,
         nom: product.nom,
         quantite: 1,
         prixUnitaire: product.prix,
@@ -186,7 +186,7 @@ export default function DevisPage() {
                     <div className="absolute z-10 mt-1 w-full max-w-md bg-white border rounded-lg shadow-lg">
                       {filteredProducts.map((product) => (
                         <button
-                          key={product.id}
+                          key={product.ref}
                           onClick={() => addProduct(product)}
                           className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center justify-between"
                         >

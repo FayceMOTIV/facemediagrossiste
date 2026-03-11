@@ -1,6 +1,6 @@
 // Types principaux de l'application
 
-export type UserRole = 'admin' | 'commercial' | 'livreur' | 'client';
+export type UserRole = 'admin' | 'manager' | 'commercial' | 'livreur' | 'client';
 
 export interface User {
   id: string;

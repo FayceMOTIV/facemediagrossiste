@@ -10,6 +10,16 @@ import {
   AppUser
 } from '@/services/firebase/auth';
 
+// Gestion du cookie de session pour le middleware
+function setSessionCookie(user: AppUser) {
+  const payload = btoa(JSON.stringify({ uid: user.uid, role: user.role, depot: user.depot }));
+  document.cookie = `fastgross_session=${payload}; path=/; SameSite=Strict; max-age=86400`;
+}
+
+function clearSessionCookie() {
+  document.cookie = 'fastgross_session=; path=/; max-age=0';
+}
+
 interface AuthState {
   user: AppUser | null;
   loading: boolean;
@@ -26,6 +36,11 @@ export function useAuth() {
 
   useEffect(() => {
     const unsubscribe = onAuthChange((user) => {
+      if (user) {
+        setSessionCookie(user);
+      } else {
+        clearSessionCookie();
+      }
       setState({ user, loading: false, error: null });
     });
 
@@ -36,11 +51,14 @@ export function useAuth() {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
       const user = await loginWithEmail(email, password);
+      setSessionCookie(user);
       setState({ user, loading: false, error: null });
 
       // Redirection selon le rôle
       if (user.role === 'livreur') {
         router.push('/livraisons');
+      } else if (user.role === 'client') {
+        router.push('/commandes');
       } else {
         router.push('/dashboard');
       }
@@ -57,6 +75,7 @@ export function useAuth() {
     setState(prev => ({ ...prev, loading: true }));
     try {
       await firebaseLogout();
+      clearSessionCookie();
       setState({ user: null, loading: false, error: null });
       router.push('/login');
     } catch (error: any) {
@@ -87,7 +106,8 @@ export function useAuth() {
     error: state.error,
     isAuthenticated: !!state.user,
     isAdmin: state.user?.role === 'admin',
-    isCommercial: state.user?.role === 'commercial' || state.user?.role === 'admin',
+    isManager: state.user?.role === 'manager' || state.user?.role === 'admin',
+    isCommercial: state.user?.role === 'commercial' || state.user?.role === 'manager' || state.user?.role === 'admin',
     isLivreur: state.user?.role === 'livreur',
     login,
     logout,

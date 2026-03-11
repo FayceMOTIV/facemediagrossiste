@@ -92,7 +92,8 @@ export const getProductByRef = (ref: string): CatalogueProduct | undefined => {
 
 // Stats du catalogue
 export const getCatalogueStats = () => {
-  const categories = [...new Set(CATALOGUE_DISTRAM.map(p => p.categorie))];
+  const categoriesSet = new Set(CATALOGUE_DISTRAM.map(p => p.categorie));
+  const categories = Array.from(categoriesSet);
   return {
     totalProducts: CATALOGUE_DISTRAM.length,
     activeProducts: CATALOGUE_DISTRAM.filter(p => p.actif).length,

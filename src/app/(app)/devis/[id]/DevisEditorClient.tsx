@@ -239,9 +239,9 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
       categorie: produit.categorie,
       quantite: 1,
       unite: produit.unite,
-      prixUnitaire: produit.prix,
+      prixUnitaire: produit.prixVenteHT,
       remise: 0,
-      totalHT: produit.prix,
+      totalHT: produit.prixVenteHT,
       obligatoire: true,
     };
 
@@ -837,7 +837,7 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
                     <span className="font-medium">{produit.nom}</span>
                     <span className="text-gray-400 text-sm ml-2">({produit.sousCategorie})</span>
                   </div>
-                  <span className="font-medium text-orange-600">{formatCurrency(produit.prix)}</span>
+                  <span className="font-medium text-orange-600">{formatCurrency(produit.prixVenteHT)}</span>
                 </div>
               ))}
               {filteredProducts.length === 0 && (

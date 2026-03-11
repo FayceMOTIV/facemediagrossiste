@@ -34,7 +34,7 @@ interface Livraison {
 }
 
 export default function LivraisonsPage() {
-  const { user, signOut } = useAuth();
+  const { user, logout: signOut } = useAuth();
   const [livraisons, setLivraisons] = useState<Livraison[]>([
     {
       id: '1',

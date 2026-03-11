@@ -61,7 +61,17 @@ export const DELIVERY_SLOTS = [
 ] as const;
 
 // Tarifs (pour le site vitrine)
-export const PRICING_PLANS = [
+export interface PricingPlan {
+  id: string;
+  name: string;
+  price: number;
+  popular?: boolean;
+  description: string;
+  features: readonly string[];
+  notIncluded: readonly string[];
+}
+
+export const PRICING_PLANS: PricingPlan[] = [
   {
     id: 'starter',
     name: 'Starter',

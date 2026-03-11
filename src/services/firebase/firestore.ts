@@ -13,7 +13,9 @@ import {
   onSnapshot,
   Timestamp,
   DocumentData,
-  QueryConstraint
+  QueryConstraint,
+  QuerySnapshot,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -89,8 +91,8 @@ export const subscribeToCollection = <T>(
     q = query(q, ...queryConstraints);
   }
 
-  return onSnapshot(q, (snapshot) => {
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
     callback(data);
   });
 };

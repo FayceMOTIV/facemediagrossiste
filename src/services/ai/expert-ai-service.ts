@@ -345,7 +345,7 @@ Réponds en JSON avec la structure:
           content: [
             { type: 'text', text: 'Analyse ce menu et génère la liste des produits DISTRAM nécessaires pour une semaine. Réponds en JSON.' },
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-          ]
+          ] as unknown as string
         }
       ],
       response_format: { type: 'json_object' },

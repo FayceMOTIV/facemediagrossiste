@@ -8,8 +8,9 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './config';
+import type { UserRole } from '@/types';
 
-export type UserRole = 'admin' | 'commercial' | 'livreur' | 'client';
+export type { UserRole };
 
 export interface AppUser extends User {
   role: UserRole;
