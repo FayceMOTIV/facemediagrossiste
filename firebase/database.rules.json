@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "tracking": {
+      "livreurs": {
+        "$livreurId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $livreurId"
+        }
+      },
+      "positions": {
+        "$livreurId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $livreurId"
+        }
+      }
+    },
+    "deliveries_status": {
+      "$deliveryId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}

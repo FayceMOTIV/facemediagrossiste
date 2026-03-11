@@ -5,84 +5,109 @@ import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Package,
-  TrendingUp,
-  TrendingDown,
   AlertTriangle,
   ShoppingCart,
-  Sparkles,
-  Loader2,
   BarChart3,
+  Search,
+  Loader2,
   RefreshCw,
-  CheckCircle
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { CATALOGUE_DISTRAM } from '@/data/catalogue-distram';
+import { useStocks, type StockItem } from '@/hooks/useStocks';
+import { useAuth } from '@/hooks/useAuth';
 
-interface StockPrediction {
-  produit: string;
-  stockActuel: number;
-  consommationJour: number;
-  joursRestants: number;
-  dateRupture: string;
-  quantiteRecommandee: number;
-  urgence: 'critique' | 'attention' | 'ok';
+type UrgenceBadge = StockItem['urgence'];
+type CategoryFilter = 'tous' | 'viandes' | 'pains' | 'sauces' | 'fromages' | 'legumes' | 'frites' | 'boissons';
+
+const urgenceConfig: Record<UrgenceBadge, { label: string; color: string }> = {
+  critique: { label: 'Critique', color: 'bg-red-100 text-red-800 border border-red-300' },
+  faible: { label: 'Faible', color: 'bg-orange-100 text-orange-800 border border-orange-300' },
+  normal: { label: 'Normal', color: 'bg-green-100 text-green-800 border border-green-300' },
+  surplus: { label: 'Surplus', color: 'bg-blue-100 text-blue-800 border border-blue-300' },
+};
+
+const categoryOptions: { key: CategoryFilter; label: string }[] = [
+  { key: 'tous', label: 'Toutes catégories' },
+  { key: 'viandes', label: 'Viandes' },
+  { key: 'pains', label: 'Pains' },
+  { key: 'sauces', label: 'Sauces' },
+  { key: 'fromages', label: 'Fromages' },
+  { key: 'legumes', label: 'Légumes' },
+  { key: 'frites', label: 'Frites' },
+  { key: 'boissons', label: 'Boissons' },
+];
+
+function StockProgressBar({ actuel, minimum }: { actuel: number; minimum: number }) {
+  const max = minimum * 3;
+  const pct = Math.min(100, max > 0 ? Math.round((actuel / max) * 100) : 0);
+  const barColor =
+    actuel === 0
+      ? 'bg-red-500'
+      : actuel <= minimum * 0.5
+      ? 'bg-red-400'
+      : actuel <= minimum
+      ? 'bg-orange-400'
+      : 'bg-green-400';
+
+  return (
+    <div className="w-24">
+      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs text-gray-500 mt-0.5 text-center">{pct}%</p>
+    </div>
+  );
 }
 
 export default function StocksPage() {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [predictions, setPredictions] = useState<StockPrediction[] | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  const depotParam = isAdmin ? undefined : (user?.depot ?? undefined);
 
-  // Demo stock data
-  const stockData: StockPrediction[] = [
-    { produit: 'Broche de kebab 10kg', stockActuel: 45, consommationJour: 8, joursRestants: 5, dateRupture: '05/02/2026', quantiteRecommandee: 80, urgence: 'critique' },
-    { produit: 'Pain pita (lot 100)', stockActuel: 120, consommationJour: 25, joursRestants: 4, dateRupture: '04/02/2026', quantiteRecommandee: 200, urgence: 'critique' },
-    { produit: 'Sauce blanche 5L', stockActuel: 35, consommationJour: 5, joursRestants: 7, dateRupture: '07/02/2026', quantiteRecommandee: 50, urgence: 'attention' },
-    { produit: 'Frites surgelées 10kg', stockActuel: 200, consommationJour: 15, joursRestants: 13, dateRupture: '13/02/2026', quantiteRecommandee: 150, urgence: 'ok' },
-    { produit: 'Fromage râpé 2kg', stockActuel: 25, consommationJour: 4, joursRestants: 6, dateRupture: '06/02/2026', quantiteRecommandee: 40, urgence: 'attention' },
-    { produit: 'Coca-Cola 33cl (pack 24)', stockActuel: 150, consommationJour: 10, joursRestants: 15, dateRupture: '15/02/2026', quantiteRecommandee: 100, urgence: 'ok' },
-  ];
+  const { stocks, loading, getStats } = useStocks(depotParam);
+  const stats = getStats();
 
-  const handleAnalyze = async () => {
-    setIsAnalyzing(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setPredictions(stockData);
-    setIsAnalyzing(false);
-  };
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('tous');
 
-  const getUrgenceColor = (urgence: string) => {
-    switch (urgence) {
-      case 'critique': return 'bg-red-100 text-red-800 border-red-300';
-      case 'attention': return 'bg-orange-100 text-orange-800 border-orange-300';
-      default: return 'bg-green-100 text-green-800 border-green-300';
-    }
-  };
+  const criticalItems = stocks.filter(s => s.urgence === 'critique');
 
-  const getUrgenceLabel = (urgence: string) => {
-    switch (urgence) {
-      case 'critique': return 'Critique';
-      case 'attention': return 'Attention';
-      default: return 'OK';
-    }
-  };
+  const filteredStocks = stocks.filter((item) => {
+    const term = searchTerm.toLowerCase();
+    const matchSearch =
+      item.nom.toLowerCase().includes(term) ||
+      (item.ref ?? '').toLowerCase().includes(term);
+    const matchCategory =
+      categoryFilter === 'tous' || item.categorie === categoryFilter;
+    return matchSearch && matchCategory;
+  });
 
-  const stats = {
-    totalProduits: CATALOGUE_DISTRAM.length,
-    ruptureBientot: stockData.filter(s => s.urgence === 'critique').length,
-    aCommander: stockData.filter(s => s.urgence !== 'ok').length,
-    valeurStock: 45000,
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Header title="Stocks" subtitle="Chargement..." />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
       <Header
-        title="IA Stocks"
-        subtitle="Prédiction des besoins et optimisation des stocks"
+        title="Gestion des stocks"
+        subtitle="Suivi en temps réel des niveaux de stock"
       />
 
       <div className="p-6">
-        {/* Hero */}
+        {/* Hero card */}
         <Card className="mb-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -90,14 +115,14 @@ export default function StocksPage() {
                 <Package className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-xl font-bold mb-1">Prédiction intelligente des stocks</h2>
+                <h2 className="text-xl font-bold mb-1">Gestion des stocks temps réel</h2>
                 <p className="text-purple-100">
-                  Anticipez les ruptures, optimisez vos commandes, réduisez le gaspillage
+                  {stats.total} produits suivis · {stats.critiques} critique{stats.critiques !== 1 ? 's' : ''} · {stats.faibles} faible{stats.faibles !== 1 ? 's' : ''}
                 </p>
               </div>
               <div className="ml-auto hidden md:flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
-                <TrendingUp className="w-5 h-5" />
-                <span className="font-medium">-25% de ruptures</span>
+                <BarChart3 className="w-5 h-5" />
+                <span className="font-medium">{formatCurrency(stats.valeurTotale)}</span>
               </div>
             </div>
           </CardContent>
@@ -110,7 +135,7 @@ export default function StocksPage() {
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-2">
                 <Package className="w-6 h-6 text-purple-600" />
               </div>
-              <p className="text-2xl font-bold text-purple-600">{stats.totalProduits}</p>
+              <p className="text-2xl font-bold text-purple-600">{stats.total}</p>
               <p className="text-sm text-gray-500">Produits suivis</p>
             </CardContent>
           </Card>
@@ -119,8 +144,8 @@ export default function StocksPage() {
               <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-2">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
-              <p className="text-2xl font-bold text-red-600">{stats.ruptureBientot}</p>
-              <p className="text-sm text-gray-500">Ruptures proches</p>
+              <p className="text-2xl font-bold text-red-600">{stats.critiques}</p>
+              <p className="text-sm text-gray-500">Ruptures critiques</p>
             </CardContent>
           </Card>
           <Card>
@@ -137,67 +162,40 @@ export default function StocksPage() {
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-2">
                 <BarChart3 className="w-6 h-6 text-green-600" />
               </div>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.valeurStock)}</p>
+              <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.valeurTotale)}</p>
               <p className="text-sm text-gray-500">Valeur stock</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Action button */}
-        <div className="mb-6">
-          <Button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
-            className="bg-purple-600 hover:bg-purple-700 gap-2"
-            size="lg"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Analyse en cours...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                Analyser les stocks
-              </>
-            )}
-          </Button>
-        </div>
-
         {/* Critical alerts */}
-        {predictions && predictions.filter(p => p.urgence === 'critique').length > 0 && (
+        {criticalItems.length > 0 && (
           <Card className="mb-6 border-red-200 bg-red-50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-800">
                 <AlertTriangle className="w-5 h-5" />
-                Alertes de rupture imminente
+                Alertes — stocks critiques ({criticalItems.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {predictions.filter(p => p.urgence === 'critique').map((item, index) => (
+                {criticalItems.map((item) => (
                   <div
-                    key={index}
+                    key={item.id}
                     className="flex items-center justify-between p-4 bg-white rounded-lg border border-red-200"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                        <span className="font-bold text-red-600">{item.joursRestants}j</span>
+                        <span className="font-bold text-red-600 text-sm">{item.stockActuel}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{item.produit}</p>
-                        <div className="flex items-center gap-3 text-sm text-gray-500">
-                          <span>Stock: {item.stockActuel} unités</span>
-                          <span>•</span>
-                          <span className="text-red-600">Rupture le {item.dateRupture}</span>
-                        </div>
+                        <p className="font-medium text-gray-900">{item.nom}</p>
+                        <p className="text-sm text-gray-500">
+                          Réf. {item.ref} · Min. {item.stockMinimum} unités
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">
-                        Recommandé: <strong>{item.quantiteRecommandee}</strong>
-                      </span>
                       <Button size="sm" className="bg-red-600 hover:bg-red-700 gap-1">
                         <ShoppingCart className="w-4 h-4" />
                         Commander
@@ -210,115 +208,91 @@ export default function StocksPage() {
           </Card>
         )}
 
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Rechercher un produit..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+          >
+            {categoryOptions.map(opt => (
+              <option key={opt.key} value={opt.key}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Stock table */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Package className="w-5 h-5 text-purple-600" />
-              Prévisions de stock
+              Inventaire des stocks
             </CardTitle>
             <Button variant="outline" size="sm" className="gap-2">
               <RefreshCw className="w-4 h-4" />
               Actualiser
             </Button>
           </CardHeader>
-          <CardContent>
-            {!predictions && !isAnalyzing && (
-              <div className="text-center py-12 text-gray-500">
-                <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p>Cliquez sur "Analyser les stocks" pour obtenir les prédictions</p>
+          <CardContent className="p-0">
+            {filteredStocks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                <Package className="w-12 h-12 mb-3 text-gray-300" />
+                <p className="text-base font-medium">Aucun produit trouvé</p>
+                <p className="text-sm">Modifiez vos filtres ou ajoutez des produits.</p>
               </div>
-            )}
-
-            {isAnalyzing && (
-              <div className="text-center py-12">
-                <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
-                <p className="text-gray-600">Analyse des stocks en cours...</p>
-              </div>
-            )}
-
-            {predictions && (
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Réf.</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock actuel</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Conso/jour</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jours restants</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date rupture</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock min.</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Niveau</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgence</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommandation</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valeur</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {predictions.map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{item.produit}</td>
-                        <td className="px-4 py-3 text-gray-600">{item.stockActuel}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 text-gray-600">
-                            <TrendingDown className="w-4 h-4 text-red-500" />
-                            {item.consommationJour}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`font-medium ${item.joursRestants <= 5 ? 'text-red-600' : item.joursRestants <= 10 ? 'text-orange-600' : 'text-green-600'}`}>
-                            {item.joursRestants} jours
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">{item.dateRupture}</td>
-                        <td className="px-4 py-3">
-                          <Badge className={getUrgenceColor(item.urgence)}>
-                            {getUrgenceLabel(item.urgence)}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 font-medium text-purple-600">
-                          {item.quantiteRecommandee} unités
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button
-                            variant={item.urgence === 'critique' ? 'default' : 'outline'}
-                            size="sm"
-                            className={item.urgence === 'critique' ? 'bg-purple-600 hover:bg-purple-700' : ''}
-                          >
-                            Commander
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredStocks.map((item: StockItem) => {
+                      const urg = urgenceConfig[item.urgence];
+                      return (
+                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-xs font-mono text-gray-500">{item.ref}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{item.nom}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 capitalize">{item.categorie}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {item.stockActuel} <span className="text-xs text-gray-400">{item.unite}</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{item.stockMinimum}</td>
+                          <td className="px-4 py-3">
+                            <StockProgressBar actuel={item.stockActuel} minimum={item.stockMinimum} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge className={urg.color}>{urg.label}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                            {formatCurrency(item.valeurStock)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* AI insights */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              Insights IA
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
-              {[
-                { title: 'Tendance saisonnière', insight: 'Augmentation de 15% de la demande en viandes prévue pour février', icon: TrendingUp },
-                { title: 'Optimisation', insight: 'Grouper les commandes le mardi permet 8% d\'économie sur les frais de port', icon: ShoppingCart },
-                { title: 'Prédiction', insight: 'Stock de sauces insuffisant pour le pic du week-end prochain', icon: AlertTriangle },
-              ].map((item, i) => (
-                <div key={i} className="p-4 bg-purple-50 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <item.icon className="w-5 h-5 text-purple-600" />
-                    <span className="font-medium text-gray-900">{item.title}</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{item.insight}</p>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </div>

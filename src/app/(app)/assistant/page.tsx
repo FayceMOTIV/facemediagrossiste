@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   MessageCircle,
   Send,
@@ -17,36 +18,26 @@ import {
   TrendingUp,
   ShoppingCart,
   Users,
-  HelpCircle
+  HelpCircle,
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  suggestions?: string[];
-}
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AssistantPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Bonjour ! Je suis votre assistant commercial IA. Je peux vous aider avec :\n\n• Conseils de vente personnalisés\n• Réponses aux objections clients\n• Argumentaires produits\n• Stratégies de négociation\n• Analyse de votre portefeuille\n\nQue puis-je faire pour vous ?',
-      timestamp: new Date(),
-      suggestions: [
-        'Comment convaincre un nouveau client ?',
-        'Quels arguments pour les broches kebab ?',
-        'Comment répondre à "c\'est trop cher" ?',
-        'Analyse de mon portefeuille'
-      ]
-    }
-  ]);
+  const { user } = useAuth();
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/ai/assistant',
+      body: {
+        userId: user?.uid,
+        clientContext: {},
+      },
+    }),
+  });
+
+  const isStreaming = status === 'streaming' || status === 'submitted';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -56,161 +47,51 @@ export default function AssistantPage() {
     scrollToBottom();
   }, [messages]);
 
-  const demoResponses: Record<string, { content: string; suggestions: string[] }> = {
-    'nouveau client': {
-      content: `Pour convaincre un nouveau prospect kebab, voici ma stratégie recommandée :
-
-**1. Accroche personnalisée**
-"J'ai vu votre établissement et vos excellents avis Google (4.2★). Nous travaillons déjà avec 150 kebabs sur Lyon."
-
-**2. Différenciateurs clés**
-• Livraison gratuite dès 200€
-• 2 passages/semaine garantis avant 11h
-• 100% halal certifié
-• Prix imbattables sur les broches (75€/10kg)
-
-**3. Offre d'essai**
-Proposez une première commande à -10% pour tester la qualité.
-
-**4. Closing**
-"Quel jour vous conviendrait pour une première livraison ?"`,
-      suggestions: [
-        'Et si le client a déjà un fournisseur ?',
-        'Comment négocier le prix ?',
-        'Quels produits proposer en premier ?'
-      ]
-    },
-    'trop cher': {
-      content: `Voici comment répondre efficacement à l'objection "C'est trop cher" :
-
-**1. Valider et questionner**
-"Je comprends que le prix soit important pour vous. Puis-je vous demander par rapport à quoi vous trouvez ça cher ?"
-
-**2. Reframer sur la valeur**
-• "Nos broches sont à 75€/10kg, mais attention : c'est du 100% halal certifié"
-• "La livraison est incluse dès 200€ - calculez ce que vous payez actuellement en déplacement"
-• "Nos clients économisent en moyenne 15% vs les cash & carry grâce à nos prix de gros"
-
-**3. Ancrage concurrentiel**
-"Faisons un calcul ensemble sur votre commande type. Je suis sûr qu'on peut trouver des économies."
-
-**4. Offre conditionnelle**
-"Sur une commande de 500€/mois, je peux vous faire -5% fidélité."`,
-      suggestions: [
-        'Et s\'il veut un prix encore plus bas ?',
-        'Comment justifier la qualité premium ?',
-        'Arguments sur le rapport qualité-prix'
-      ]
-    },
-    'broche': {
-      content: `Voici les arguments clés pour vendre nos **broches de kebab** :
-
-**Qualité & Traçabilité**
-• 100% viande halal certifiée
-• Traçabilité complète lot par lot
-• Texture optimale : ni trop grasse, ni trop sèche
-• Conservation : 12 mois au congélateur
-
-**Avantages économiques**
-• 75€/10kg soit 7.50€/kg (vs 9-10€ en cash & carry)
-• Rendement excellent : 85% après cuisson
-• 1 broche = ~80 kebabs (12.5 centimes/kebab en viande)
-
-**Services inclus**
-• Livraison gratuite dès 200€
-• Commande WhatsApp le soir, livré le lendemain
-• Remplacement immédiat si problème qualité
-
-**Témoignage client**
-"O'Tacos Lyon 7 est passé de 150 à 300 kebabs/jour grâce à notre qualité régulière."`,
-      suggestions: [
-        'Quels accompagnements proposer ?',
-        'Comment gérer les retours qualité ?',
-        'Stratégie de cross-selling'
-      ]
-    },
-    'portefeuille': {
-      content: `**Analyse de votre portefeuille client :**
-
-📊 **Vue d'ensemble**
-• 25 clients actifs
-• CA moyen : 2 450€/mois par client
-• CA total mensuel : ~61 000€
-
-🎯 **Top 5 clients (60% du CA)**
-1. O'Tacos Lyon 7 - 5 200€/mois
-2. Tacos Avenue Part-Dieu - 4 800€/mois
-3. Pizza Napoli - 3 900€/mois
-4. Sultan Kebab - 3 600€/mois
-5. Istanbul Grill - 3 400€/mois
-
-⚠️ **Clients à risque (churn)**
-• Antalya Grill - Score 75% - Baisse CA de 25%
-• Snack du Marché - Score 68% - Inactif depuis 3 semaines
-
-📈 **Opportunités de croissance**
-• 5 clients commandent uniquement des broches → potentiel cross-sell sauces
-• 3 nouveaux prospects qualifiés à 80+ en attente de contact`,
-      suggestions: [
-        'Comment réactiver les clients inactifs ?',
-        'Stratégie pour le cross-selling',
-        'Comment fidéliser les top clients ?'
-      ]
-    }
-  };
-
   const handleSend = async () => {
-    if (!input.trim()) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    if (!input.trim() || isStreaming) return;
+    const text = input;
     setInput('');
-    setIsTyping(true);
-
-    // Simulate AI response
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // Find matching response
-    const inputLower = input.toLowerCase();
-    let response = {
-      content: "Je comprends votre question. Laissez-moi analyser cela...\n\nPour une réponse personnalisée, n'hésitez pas à me donner plus de contexte sur le client ou la situation.",
-      suggestions: ['Comment convaincre un nouveau client ?', 'Arguments pour les broches', 'Répondre aux objections']
-    };
-
-    for (const [key, value] of Object.entries(demoResponses)) {
-      if (inputLower.includes(key)) {
-        response = value;
-        break;
-      }
-    }
-
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: response.content,
-      timestamp: new Date(),
-      suggestions: response.suggestions
-    };
-
-    setMessages(prev => [...prev, assistantMessage]);
-    setIsTyping(false);
+    await sendMessage({ text });
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setInput(suggestion);
   };
 
+  const handleQuickAction = async (query: string) => {
+    if (isStreaming) return;
+    await sendMessage({ text: query });
+  };
+
   const quickActions = [
-    { icon: TrendingUp, label: 'Analyse ventes', query: 'Analyse mon portefeuille' },
-    { icon: Users, label: 'Nouveau client', query: 'Comment convaincre un nouveau client ?' },
-    { icon: ShoppingCart, label: 'Cross-selling', query: 'Stratégie de cross-selling' },
-    { icon: HelpCircle, label: 'Objections', query: 'Comment répondre à "c\'est trop cher" ?' },
+    {
+      icon: TrendingUp,
+      label: 'Analyse ventes',
+      query: 'Analyse mon portefeuille',
+    },
+    {
+      icon: Users,
+      label: 'Nouveau client',
+      query: 'Comment convaincre un nouveau client ?',
+    },
+    {
+      icon: ShoppingCart,
+      label: 'Cross-selling',
+      query: 'Stratégie de cross-selling',
+    },
+    {
+      icon: HelpCircle,
+      label: 'Objections',
+      query: "Comment répondre à \"c'est trop cher\" ?",
+    },
+  ];
+
+  // Initial suggestions shown before any messages
+  const initialSuggestions = [
+    'Comment convaincre un nouveau client ?',
+    'Quels arguments pour les broches kebab ?',
+    "Comment répondre à \"c'est trop cher\" ?",
+    'Analyse de mon portefeuille',
   ];
 
   return (
@@ -229,9 +110,12 @@ Proposez une première commande à -10% pour tester la qualité.
                 <MessageCircle className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-xl font-bold mb-1">Assistant Commercial IA</h2>
+                <h2 className="text-xl font-bold mb-1">
+                  Assistant Commercial IA
+                </h2>
                 <p className="text-indigo-100">
-                  Conseils de vente, argumentaires, réponses aux objections - en temps réel
+                  Conseils de vente, argumentaires, réponses aux objections - en
+                  temps réel
                 </p>
               </div>
               <div className="ml-auto hidden md:flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
@@ -249,7 +133,8 @@ Proposez une première commande à -10% pour tester la qualité.
               key={i}
               variant="outline"
               className="h-auto py-3 flex flex-col gap-2"
-              onClick={() => setInput(action.query)}
+              onClick={() => handleQuickAction(action.query)}
+              disabled={isStreaming}
             >
               <action.icon className="w-5 h-5 text-indigo-600" />
               <span className="text-xs">{action.label}</span>
@@ -268,61 +153,116 @@ Proposez une première commande à -10% pour tester la qualité.
           <CardContent className="flex-1 flex flex-col p-0">
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[400px]">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                      <Bot className="w-4 h-4 text-indigo-600" />
+              {/* Welcome message when no messages yet */}
+              {messages.length === 0 && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="max-w-[80%]">
+                    <div className="bg-gray-100 text-gray-900 p-3 rounded-lg">
+                      <p className="whitespace-pre-wrap text-sm">
+                        {`Bonjour ! Je suis votre assistant commercial IA. Je peux vous aider avec :
+
+• Conseils de vente personnalisés
+• Réponses aux objections clients
+• Argumentaires produits
+• Stratégies de négociation
+• Analyse de votre portefeuille
+
+Que puis-je faire pour vous ?`}
+                      </p>
                     </div>
-                  )}
-                  <div className={`max-w-[80%] ${message.role === 'user' ? 'order-first' : ''}`}>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {initialSuggestions.map((suggestion, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full hover:bg-indigo-100 transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Actual messages */}
+              {messages.map((message) => {
+                const textContent = message.parts
+                  .filter((p) => p.type === 'text')
+                  .map((p) => (p as { type: 'text'; text: string }).text)
+                  .join('');
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {message.role === 'assistant' && (
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                        <Bot className="w-4 h-4 text-indigo-600" />
+                      </div>
+                    )}
                     <div
-                      className={`p-3 rounded-lg ${
-                        message.role === 'user'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
+                      className={`max-w-[80%] ${message.role === 'user' ? 'order-first' : ''}`}
                     >
-                      <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                      <div
+                        className={`p-3 rounded-lg ${
+                          message.role === 'user'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-900'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap text-sm">
+                          {textContent}
+                        </p>
+                      </div>
                     </div>
-                    {message.suggestions && message.role === 'assistant' && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {message.suggestions.map((suggestion, i) => (
-                          <button
-                            key={i}
-                            onClick={() => handleSuggestionClick(suggestion)}
-                            className="text-xs px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full hover:bg-indigo-100 transition-colors"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
+                    {message.role === 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <User className="w-4 h-4 text-gray-600" />
                       </div>
                     )}
                   </div>
-                  {message.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4 text-gray-600" />
-                    </div>
-                  )}
-                </div>
-              ))}
-              {isTyping && (
+                );
+              })}
+
+              {/* Streaming indicator */}
+              {isStreaming && (
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
                     <Bot className="w-4 h-4 text-indigo-600" />
                   </div>
                   <div className="bg-gray-100 rounded-lg p-3">
                     <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <span
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '0ms' }}
+                      />
+                      <span
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '150ms' }}
+                      />
+                      <span
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: '300ms' }}
+                      />
                     </div>
                   </div>
                 </div>
               )}
+
+              {/* Error display */}
+              {error && (
+                <div className="flex gap-3">
+                  <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
+                    Une erreur est survenue. Veuillez réessayer.
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -340,14 +280,14 @@ Proposez une première commande à -10% pour tester la qualité.
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Posez votre question..."
                   className="flex-1"
-                  disabled={isTyping}
+                  disabled={isStreaming}
                 />
                 <Button
                   type="submit"
-                  disabled={!input.trim() || isTyping}
+                  disabled={!input.trim() || isStreaming}
                   className="bg-indigo-600 hover:bg-indigo-700"
                 >
-                  {isTyping ? (
+                  {isStreaming ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4" />
@@ -369,12 +309,23 @@ Proposez une première commande à -10% pour tester la qualité.
           <CardContent>
             <div className="grid md:grid-cols-3 gap-4">
               {[
-                { title: 'Meilleur moment d\'appel', tip: 'Les mardis et jeudis entre 10h-11h30 ont le meilleur taux de réponse' },
-                { title: 'Produit star', tip: 'La broche 10kg à 75€ est votre meilleur argument prix' },
-                { title: 'Objection fréquente', tip: '45% des prospects mentionnent le prix - préparez votre argumentaire valeur' },
+                {
+                  title: "Meilleur moment d'appel",
+                  tip: 'Les mardis et jeudis entre 10h-11h30 ont le meilleur taux de réponse',
+                },
+                {
+                  title: 'Produit star',
+                  tip: "La broche 10kg à 75€ est votre meilleur argument prix",
+                },
+                {
+                  title: 'Objection fréquente',
+                  tip: "45% des prospects mentionnent le prix - préparez votre argumentaire valeur",
+                },
               ].map((item, i) => (
                 <div key={i} className="p-3 bg-yellow-50 rounded-lg">
-                  <p className="font-medium text-gray-900 text-sm mb-1">{item.title}</p>
+                  <p className="font-medium text-gray-900 text-sm mb-1">
+                    {item.title}
+                  </p>
                   <p className="text-xs text-gray-600">{item.tip}</p>
                 </div>
               ))}

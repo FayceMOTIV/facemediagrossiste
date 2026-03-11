@@ -1,14 +1,14 @@
 {
-  "name": "Face Media Grossiste × DISTRAM",
-  "short_name": "FMG Pro",
-  "description": "Plateforme B2B IA pour grossistes alimentaires halal",
-  "start_url": "/dashboard",
+  "name": "FastGross Pro - DISTRAM",
+  "short_name": "FastGross",
+  "description": "Plateforme B2B grossiste alimentaire halal",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#ea580c",
-  "categories": ["business", "productivity"],
+  "categories": ["business", "food"],
   "lang": "fr",
   "icons": [
     {
@@ -65,20 +65,23 @@
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
+      "description": "Voir le tableau de bord",
       "url": "/dashboard",
-      "description": "Voir le tableau de bord"
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Commandes",
+      "short_name": "Commandes",
+      "description": "Gérer les commandes",
+      "url": "/commandes",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Scan Menu",
       "short_name": "Scan",
+      "description": "Scanner un menu avec l'IA",
       "url": "/scan-menu",
-      "description": "Scanner un menu avec l'IA"
-    },
-    {
-      "name": "Clients",
-      "short_name": "Clients",
-      "url": "/clients",
-      "description": "Gérer les clients"
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

@@ -1,6 +1,7 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { PostHogProvider } from '@/components/providers/PostHogProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -9,6 +10,15 @@ export const metadata: Metadata = {
   description: 'Plateforme B2B intelligente pour grossistes alimentaires. 6 IAs spécialisées : Scan Menu, Prospection, Anti-Churn, Tournées, Stocks, Assistant Commercial.',
   keywords: 'grossiste alimentaire, B2B, IA, foodservice, kebab, tacos, halal, Lyon, Montpellier, Bordeaux',
   authors: [{ name: 'Face Media' }],
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'FastGross Pro',
+  },
+  formatDetection: {
+    telephone: false,
+  },
   openGraph: {
     title: 'FastGross Pro × DISTRAM',
     description: 'Plateforme B2B intelligente pour grossistes alimentaires',
@@ -28,6 +38,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: '#ea580c',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -38,10 +55,14 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-        <meta name="theme-color" content="#ea580c" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className={inter.className}>
-        {children}
+        <PostHogProvider>
+          {children}
+        </PostHogProvider>
       </body>
     </html>
   );

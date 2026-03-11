@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helpers
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -15,89 +14,129 @@ service cloud.firestore {
       return isAuthenticated() && getUserRole() == 'admin';
     }
 
-    function isCommercial() {
-      return isAuthenticated() && getUserRole() in ['admin', 'commercial'];
+    function isManager() {
+      return isAuthenticated() && (getUserRole() == 'manager' || getUserRole() == 'admin');
+    }
+
+    function isStaff() {
+      return isAuthenticated() && getUserRole() in ['admin', 'manager', 'commercial'];
     }
 
     function isLivreur() {
-      return isAuthenticated() && getUserRole() in ['admin', 'livreur'];
+      return isAuthenticated() && getUserRole() == 'livreur';
     }
 
-    // Users - lecture pour tous les auth, création pour soi-même, mise à jour admin
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      // Permettre à un utilisateur de créer son propre document (première connexion)
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      // Permettre à un utilisateur de modifier son profil OU admin peut tout modifier
-      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && (isOwner(userId) || isManager());
+      allow create: if isAdmin();
+      allow update: if isOwner(userId) || isManager();
       allow delete: if isAdmin();
     }
 
-    // Clients - commerciaux et admins
+    // Clients
     match /clients/{clientId} {
-      allow read: if isAuthenticated();
-      allow write: if isCommercial();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
-    // Products - lecture tous, écriture admin
+    // Products
     match /products/{productId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // Orders - tous authentifiés peuvent lire leurs commandes
+    // Orders
     match /orders/{orderId} {
+      allow read: if isStaff() || isLivreur() ||
+        (isAuthenticated() && resource.data.clientId == request.auth.uid);
+      allow create: if isStaff() ||
+        (isAuthenticated() && getUserRole() == 'client');
+      allow update: if isStaff() || isLivreur();
+      allow delete: if isManager();
+    }
+
+    // Deliveries
+    match /deliveries/{deliveryId} {
+      allow read: if isStaff() || isLivreur() ||
+        (isAuthenticated() && resource.data.clientId == request.auth.uid);
+      allow create: if isStaff();
+      allow update: if isStaff() || isLivreur();
+      allow delete: if isManager();
+    }
+
+    // Quotes
+    match /quotes/{quoteId} {
+      allow read: if isStaff() ||
+        (isAuthenticated() && resource.data.clientId == request.auth.uid);
+      allow write: if isStaff();
+    }
+
+    // Alerts
+    match /alerts/{alertId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isStaff();
+      allow delete: if isManager();
+    }
+
+    // Prospects
+    match /prospects/{prospectId} {
+      allow read: if isStaff();
+      allow write: if isStaff();
+    }
+
+    // Stocks
+    match /stocks/{stockId} {
       allow read: if isAuthenticated();
+      allow write: if isStaff();
+    }
+
+    // Activity logs (audit trail)
+    match /activity_logs/{logId} {
+      allow read: if isManager();
       allow create: if isAuthenticated();
-      allow update: if isCommercial() || isLivreur();
+      allow update: if false;
       allow delete: if isAdmin();
     }
 
-    // Deliveries - livreurs et admins
-    match /deliveries/{deliveryId} {
+    // Churn analyses
+    match /churn_analyses/{id} {
+      allow read: if isStaff();
+      allow write: if isStaff();
+    }
+
+    // Route optimizations
+    match /route_optimizations/{id} {
+      allow read: if isStaff() || isLivreur();
+      allow write: if isStaff() || isLivreur();
+    }
+
+    // Stock predictions
+    match /stock_predictions/{id} {
       allow read: if isAuthenticated();
-      allow write: if isLivreur();
+      allow write: if isManager();
     }
 
-    // Quotes - commerciaux
-    match /quotes/{quoteId} {
-      allow read, write: if isCommercial();
-    }
-
-    // Alerts - tous peuvent lire, admins écrivent
-    match /alerts/{alertId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Prospects - commerciaux
-    match /prospects/{prospectId} {
-      allow read, write: if isCommercial();
-    }
-
-    // Churn Analyses - commerciaux et admins
-    match /churn_analyses/{analysisId} {
-      allow read: if isAuthenticated();
-      allow write: if isCommercial();
-    }
-
-    // Route Optimizations - livreurs et admins
-    match /route_optimizations/{routeId} {
-      allow read: if isAuthenticated();
-      allow write: if isLivreur();
-    }
-
-    // Stock Predictions - admin only
-    match /stock_predictions/{predictionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Demo requests - PUBLIC (site vitrine)
-    match /demo_requests/{requestId} {
+    // Demo requests (public write for vitrine)
+    match /demo_requests/{id} {
+      allow read: if isManager();
       allow create: if true;
-      allow read: if isAdmin();
-      allow update, delete: if isAdmin();
+      allow update, delete: if isManager();
+    }
+
+    // Chat conversations
+    match /conversations/{convId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isManager());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isManager());
+      allow delete: if isAdmin();
     }
   }
 }

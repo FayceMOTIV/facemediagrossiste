@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './config';
+import { updateEmployeeLastLogin } from './employees';
 import type { UserRole } from '@/types';
 
 export type { UserRole };
@@ -40,7 +41,9 @@ export const loginWithEmail = async (email: string, password: string): Promise<A
     return { ...userCredential.user, ...defaultUserData } as AppUser;
   }
 
-  return { ...userCredential.user, ...userDoc.data() } as AppUser;
+  const appUser = { ...userCredential.user, ...userDoc.data() } as AppUser;
+  await updateEmployeeLastLogin(userCredential.user.uid);
+  return appUser;
 };
 
 export const registerUser = async (

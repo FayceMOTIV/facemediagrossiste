@@ -153,6 +153,7 @@ export const SECONDARY_NAV = [
   { name: 'Devis', href: '/devis', icon: 'FileText' },
   { name: 'Supervision', href: '/supervision', icon: 'Building2' },
   { name: 'Messagerie', href: '/chat', icon: 'MessageCircle' },
+  { name: 'Equipe', href: '/equipe', icon: 'Users2' },
   { name: 'Paramètres', href: '/settings', icon: 'Settings' },
 ] as const;
 

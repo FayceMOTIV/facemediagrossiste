@@ -13,13 +13,19 @@ import {
   CheckCircle,
   Navigation,
   Package,
-  User,
   ChevronRight,
   AlertCircle,
   Home,
-  LogOut
+  LogOut,
+  Wifi,
+  WifiOff,
+  Camera,
+  PenLine,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useLivreurTracking } from '@/hooks/useTracking';
+import { updateDeliveryStatus } from '@/services/firebase/realtime';
 
 interface Livraison {
   id: string;
@@ -31,10 +37,23 @@ interface Livraison {
   produits: { nom: string; quantite: number }[];
   notes?: string;
   position: number;
+  issueText?: string;
 }
 
 export default function LivraisonsPage() {
   const { user, logout: signOut } = useAuth();
+
+  // GPS tracking hook
+  const {
+    isTracking,
+    error: trackingError,
+    startTracking,
+    stopTracking,
+  } = useLivreurTracking(
+    user?.uid ?? '',
+    user?.displayName ?? 'Livreur'
+  );
+
   const [livraisons, setLivraisons] = useState<Livraison[]>([
     {
       id: '1',
@@ -45,9 +64,9 @@ export default function LivraisonsPage() {
       status: 'termine',
       produits: [
         { nom: 'Broche kebab 10kg', quantite: 3 },
-        { nom: 'Pain pita (lot 100)', quantite: 2 }
+        { nom: 'Pain pita (lot 100)', quantite: 2 },
       ],
-      position: 1
+      position: 1,
     },
     {
       id: '2',
@@ -58,9 +77,9 @@ export default function LivraisonsPage() {
       status: 'termine',
       produits: [
         { nom: 'Broche kebab 10kg', quantite: 4 },
-        { nom: 'Sauce blanche 5L', quantite: 3 }
+        { nom: 'Sauce blanche 5L', quantite: 3 },
       ],
-      position: 2
+      position: 2,
     },
     {
       id: '3',
@@ -71,10 +90,10 @@ export default function LivraisonsPage() {
       status: 'en_cours',
       produits: [
         { nom: 'Fromage mozzarella 2kg', quantite: 5 },
-        { nom: 'Sauce tomate 5L', quantite: 4 }
+        { nom: 'Sauce tomate 5L', quantite: 4 },
       ],
       notes: 'Accès par la cour arrière',
-      position: 3
+      position: 3,
     },
     {
       id: '4',
@@ -85,9 +104,9 @@ export default function LivraisonsPage() {
       status: 'a_faire',
       produits: [
         { nom: 'Steaks hachés (carton 50)', quantite: 2 },
-        { nom: 'Fromage cheddar 1kg', quantite: 4 }
+        { nom: 'Fromage cheddar 1kg', quantite: 4 },
       ],
-      position: 4
+      position: 4,
     },
     {
       id: '5',
@@ -98,14 +117,16 @@ export default function LivraisonsPage() {
       status: 'a_faire',
       produits: [
         { nom: 'Galettes tortilla (pack 100)', quantite: 3 },
-        { nom: 'Sauce fromagère 5L', quantite: 5 }
+        { nom: 'Sauce fromagère 5L', quantite: 5 },
       ],
       notes: 'Livraison zone de déchargement B2',
-      position: 5
+      position: 5,
     },
   ]);
 
   const [selectedLivraison, setSelectedLivraison] = useState<Livraison | null>(null);
+  const [showIssueInput, setShowIssueInput] = useState(false);
+  const [issueText, setIssueText] = useState('');
 
   const stats = {
     total: livraisons.length,
@@ -114,11 +135,39 @@ export default function LivraisonsPage() {
     aFaire: livraisons.filter(l => l.status === 'a_faire').length,
   };
 
-  const handleStatusChange = (id: string, newStatus: Livraison['status']) => {
+  const handleStatusChange = async (id: string, newStatus: Livraison['status']) => {
     setLivraisons(livraisons.map(l =>
       l.id === id ? { ...l, status: newStatus } : l
     ));
     setSelectedLivraison(null);
+    setShowIssueInput(false);
+    setIssueText('');
+
+    // Sync to Firebase Realtime DB
+    try {
+      const firebaseStatus =
+        newStatus === 'en_cours' ? 'en_cours' :
+        newStatus === 'termine' ? 'livree' :
+        'en_attente';
+      await updateDeliveryStatus(id, firebaseStatus);
+    } catch {
+      // Silent fail — local state already updated
+    }
+  };
+
+  const handleReportIssue = async (id: string, text: string) => {
+    setLivraisons(livraisons.map(l =>
+      l.id === id ? { ...l, issueText: text } : l
+    ));
+    setSelectedLivraison(null);
+    setShowIssueInput(false);
+    setIssueText('');
+
+    try {
+      await updateDeliveryStatus(id, 'probleme');
+    } catch {
+      // Silent fail
+    }
   };
 
   const getStatusColor = (status: Livraison['status']) => {
@@ -137,6 +186,14 @@ export default function LivraisonsPage() {
     }
   };
 
+  const handleTrackingToggle = () => {
+    if (isTracking) {
+      stopTracking();
+    } else {
+      startTracking();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -148,7 +205,7 @@ export default function LivraisonsPage() {
             </div>
             <div>
               <h1 className="font-bold">Mes livraisons</h1>
-              <p className="text-sm text-green-100">{user?.displayName || 'Livreur'}</p>
+              <p className="text-sm text-green-100">{user?.displayName ?? 'Livreur'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -169,8 +226,46 @@ export default function LivraisonsPage() {
         </div>
       </header>
 
-      {/* Stats */}
       <div className="p-4">
+        {/* GPS Tracking Toggle */}
+        <div className={`rounded-xl p-4 mb-4 shadow-sm flex items-center justify-between ${
+          isTracking ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            {isTracking ? (
+              <div className="relative">
+                <Wifi className="w-6 h-6 text-green-600" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full" />
+              </div>
+            ) : (
+              <WifiOff className="w-6 h-6 text-gray-400" />
+            )}
+            <div>
+              <p className="font-medium text-sm text-gray-900">
+                {isTracking ? 'Tracking GPS actif' : 'Tracking GPS inactif'}
+              </p>
+              {trackingError && (
+                <p className="text-xs text-red-500">{trackingError}</p>
+              )}
+              {isTracking && !trackingError && (
+                <p className="text-xs text-green-600">Votre position est partagée en temps réel</p>
+              )}
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleTrackingToggle}
+            className={isTracking
+              ? 'bg-red-500 hover:bg-red-600 text-white'
+              : 'bg-green-600 hover:bg-green-700 text-white'
+            }
+          >
+            {isTracking ? 'Désactiver' : 'Activer le tracking GPS'}
+          </Button>
+        </div>
+
+        {/* Stats */}
         <div className="grid grid-cols-4 gap-2 mb-4">
           <div className="bg-white rounded-xl p-3 text-center shadow-sm">
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
@@ -214,7 +309,11 @@ export default function LivraisonsPage() {
               className={`cursor-pointer transition-all ${
                 livraison.status === 'en_cours' ? 'border-blue-500 border-2' : ''
               }`}
-              onClick={() => setSelectedLivraison(livraison)}
+              onClick={() => {
+                setSelectedLivraison(livraison);
+                setShowIssueInput(false);
+                setIssueText('');
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
@@ -253,6 +352,55 @@ export default function LivraisonsPage() {
                         {livraison.notes}
                       </div>
                     )}
+                    {livraison.issueText && (
+                      <div className="flex items-center gap-1 mt-2 text-xs text-red-600">
+                        <AlertTriangle className="w-3 h-3" />
+                        Problème: {livraison.issueText}
+                      </div>
+                    )}
+
+                    {/* Inline quick action buttons */}
+                    {livraison.status === 'a_faire' && (
+                      <Button
+                        size="sm"
+                        className="mt-3 bg-blue-600 hover:bg-blue-700 text-white w-full gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusChange(livraison.id, 'en_cours');
+                        }}
+                      >
+                        <Navigation className="w-4 h-4" />
+                        Démarrer
+                      </Button>
+                    )}
+                    {livraison.status === 'en_cours' && (
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusChange(livraison.id, 'termine');
+                          }}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Livré
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-red-300 text-red-600 hover:bg-red-50 gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLivraison(livraison);
+                            setShowIssueInput(true);
+                          }}
+                        >
+                          <AlertTriangle className="w-4 h-4" />
+                          Problème
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 </div>
@@ -265,14 +413,18 @@ export default function LivraisonsPage() {
       {/* Detail modal */}
       {selectedLivraison && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white w-full rounded-t-3xl max-h-[80vh] overflow-y-auto">
+          <div className="bg-white w-full rounded-t-3xl max-h-[85vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
               <h2 className="font-bold text-lg">{selectedLivraison.client}</h2>
               <button
-                onClick={() => setSelectedLivraison(null)}
+                onClick={() => {
+                  setSelectedLivraison(null);
+                  setShowIssueInput(false);
+                  setIssueText('');
+                }}
                 className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
               >
-                ×
+                &times;
               </button>
             </div>
 
@@ -356,9 +508,48 @@ export default function LivraisonsPage() {
                 </Card>
               )}
 
+              {/* Issue input */}
+              {showIssueInput && (
+                <Card className="border-red-200 bg-red-50">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-sm font-medium text-red-700 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Décrire le problème
+                    </p>
+                    <textarea
+                      className="w-full border border-red-300 rounded-lg p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
+                      rows={3}
+                      placeholder="Ex: Client absent, accès bloqué, colis endommagé..."
+                      value={issueText}
+                      onChange={(e) => setIssueText(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                        disabled={!issueText.trim()}
+                        onClick={() => handleReportIssue(selectedLivraison.id, issueText)}
+                      >
+                        Signaler le problème
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setShowIssueInput(false);
+                          setIssueText('');
+                        }}
+                      >
+                        Annuler
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Actions */}
               <div className="space-y-2 pt-4">
-                {selectedLivraison.status === 'a_faire' && (
+                {selectedLivraison.status === 'a_faire' && !showIssueInput && (
                   <Button
                     onClick={() => handleStatusChange(selectedLivraison.id, 'en_cours')}
                     className="w-full bg-blue-600 hover:bg-blue-700 gap-2"
@@ -368,17 +559,47 @@ export default function LivraisonsPage() {
                     Démarrer la livraison
                   </Button>
                 )}
-                {selectedLivraison.status === 'en_cours' && (
-                  <Button
-                    onClick={() => handleStatusChange(selectedLivraison.id, 'termine')}
-                    className="w-full bg-green-600 hover:bg-green-700 gap-2"
-                    size="lg"
-                  >
-                    <CheckCircle className="w-5 h-5" />
-                    Marquer comme livrée
-                  </Button>
+                {selectedLivraison.status === 'en_cours' && !showIssueInput && (
+                  <>
+                    <Button
+                      onClick={() => handleStatusChange(selectedLivraison.id, 'termine')}
+                      className="w-full bg-green-600 hover:bg-green-700 gap-2"
+                      size="lg"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      Marquer comme livrée
+                    </Button>
+                    {/* Signature / photo buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2 border-gray-300"
+                        size="sm"
+                      >
+                        <PenLine className="w-4 h-4" />
+                        Signature
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2 border-gray-300"
+                        size="sm"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Photo
+                      </Button>
+                    </div>
+                    <Button
+                      onClick={() => setShowIssueInput(true)}
+                      variant="outline"
+                      className="w-full gap-2 border-red-300 text-red-600 hover:bg-red-50"
+                      size="sm"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      Signaler un problème
+                    </Button>
+                  </>
                 )}
-                {selectedLivraison.status === 'termine' && (
+                {selectedLivraison.status === 'termine' && !showIssueInput && (
                   <div className="text-center py-4">
                     <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
                     <p className="text-green-600 font-medium">Livraison terminée</p>
