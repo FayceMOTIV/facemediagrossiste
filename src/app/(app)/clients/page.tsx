@@ -107,7 +107,7 @@ export default function ClientsPage() {
         }
       />
 
-      <div className="p-6">
+      <main id="main-content" className="p-6">
         {/* Stats cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card>
@@ -140,14 +140,15 @@ export default function ClientsPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div role="search" className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
             <Input
               type="search"
               placeholder="Rechercher un client..."
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Rechercher un client"
             />
           </div>
 
@@ -284,11 +285,14 @@ export default function ClientsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${riskColor}`}>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${riskColor}`}
+                                aria-label={`Risque ${riskLevel}: ${client.nom}`}
+                              >
                                 {client.riskScore}%
                               </span>
                               {client.riskScore >= 70 && (
-                                <AlertTriangle className="w-4 h-4 text-orange-500" />
+                                <AlertTriangle className="w-4 h-4 text-orange-500" aria-hidden="true" />
                               )}
                             </div>
                           </td>
@@ -319,7 +323,7 @@ export default function ClientsPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 }

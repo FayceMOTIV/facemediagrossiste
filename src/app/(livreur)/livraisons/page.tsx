@@ -197,7 +197,7 @@ export default function LivraisonsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-green-600 text-white p-4 sticky top-0 z-50">
+      <header role="banner" className="bg-green-600 text-white p-4 sticky top-0 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -226,7 +226,7 @@ export default function LivraisonsPage() {
         </div>
       </header>
 
-      <div className="p-4">
+      <main id="main-content" className="p-4">
         {/* GPS Tracking Toggle */}
         <div className={`rounded-xl p-4 mb-4 shadow-sm flex items-center justify-between ${
           isTracking ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'
@@ -256,6 +256,8 @@ export default function LivraisonsPage() {
           <Button
             size="sm"
             onClick={handleTrackingToggle}
+            aria-pressed={isTracking}
+            aria-label={isTracking ? 'Désactiver le tracking GPS' : 'Activer le tracking GPS'}
             className={isTracking
               ? 'bg-red-500 hover:bg-red-600 text-white'
               : 'bg-green-600 hover:bg-green-700 text-white'
@@ -408,7 +410,7 @@ export default function LivraisonsPage() {
             </Card>
           ))}
         </div>
-      </div>
+      </main>
 
       {/* Detail modal */}
       {selectedLivraison && (

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { PostHogProvider } from '@/components/providers/PostHogProvider';
+import { SkipLink } from '@/components/layout/SkipLink';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -60,6 +61,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className={inter.className}>
+        <SkipLink />
         <PostHogProvider>
           {children}
         </PostHogProvider>

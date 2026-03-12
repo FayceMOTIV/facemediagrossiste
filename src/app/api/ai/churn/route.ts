@@ -1,6 +1,7 @@
 import { generateObject } from 'ai';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
+import { withRetry } from '@/lib/ai-retry';
 import { z } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -73,11 +74,13 @@ Notes: ${(clientData as Record<string, unknown>).notes ?? 'aucune'}
 
 Génère une analyse détaillée du risque de churn avec score final, actions recommandées et signaux détectés.`;
 
-    const { object } = await generateObject({
-      model: openaiProvider('gpt-4o-mini'),
-      schema: ChurnAnalysisSchema,
-      prompt,
-    });
+    const { object } = await withRetry(() =>
+      generateObject({
+        model: openaiProvider('gpt-4o-mini'),
+        schema: ChurnAnalysisSchema,
+        prompt,
+      })
+    );
 
     await logAICall(
       'churn-analysis',

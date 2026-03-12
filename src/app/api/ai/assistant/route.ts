@@ -2,6 +2,7 @@ import { streamText, type ModelMessage } from 'ai';
 import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
+import { withRetry } from '@/lib/ai-retry';
 import { NextRequest } from 'next/server';
 
 const CATALOG_CONTEXT = `
@@ -40,42 +41,52 @@ Règles :
 
     // Primary: Gemini 2.5 Flash-Lite (chat libre, streaming)
     // Fallback: gpt-4o-mini si Gemini indisponible
+    const primaryModel = googleProvider('gemini-2.5-flash-lite-preview-06-17');
+    const system = systemPrompt;
     let result;
     try {
-      result = streamText({
-        model: googleProvider('gemini-2.5-flash-lite-preview-06-17'),
-        system: systemPrompt,
-        messages,
-        maxOutputTokens: 1000,
-        onFinish: async ({ text, usage }) => {
-          await logAICall(
-            'assistant-client',
-            'gemini-2.5-flash-lite',
-            (messages[messages.length - 1]?.content as string) ?? '',
-            text,
-            { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
-            userId
-          ).catch(() => {});
-        },
-      });
+      result = await withRetry(() =>
+        Promise.resolve(
+          streamText({
+            model: primaryModel,
+            system,
+            messages,
+            maxOutputTokens: 1000,
+            onFinish: async ({ text, usage }) => {
+              await logAICall(
+                'assistant-client',
+                'gemini-2.5-flash-lite',
+                (messages[messages.length - 1]?.content as string) ?? '',
+                text,
+                { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+                userId
+              ).catch(() => {});
+            },
+          })
+        )
+      );
     } catch {
       // Fallback to gpt-4o-mini
-      result = streamText({
-        model: openaiProvider('gpt-4o-mini'),
-        system: systemPrompt,
-        messages,
-        maxOutputTokens: 1000,
-        onFinish: async ({ text, usage }) => {
-          await logAICall(
-            'assistant-client-fallback',
-            'gpt-4o-mini',
-            (messages[messages.length - 1]?.content as string) ?? '',
-            text,
-            { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
-            userId
-          ).catch(() => {});
-        },
-      });
+      result = await withRetry(() =>
+        Promise.resolve(
+          streamText({
+            model: openaiProvider('gpt-4o-mini'),
+            system,
+            messages,
+            maxOutputTokens: 1000,
+            onFinish: async ({ text, usage }) => {
+              await logAICall(
+                'assistant-client-fallback',
+                'gpt-4o-mini',
+                (messages[messages.length - 1]?.content as string) ?? '',
+                text,
+                { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+                userId
+              ).catch(() => {});
+            },
+          })
+        )
+      );
     }
 
     return result.toTextStreamResponse();

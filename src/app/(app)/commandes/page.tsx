@@ -129,7 +129,7 @@ export default function CommandesPage() {
         }
       />
 
-      <div className="p-6">
+      <main id="main-content" className="p-6">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card>
@@ -190,6 +190,7 @@ export default function CommandesPage() {
         <Card>
           <CardContent className="p-0">
             {filteredOrders.length === 0 ? (
+
               <div className="flex flex-col items-center justify-center py-16 text-gray-500">
                 <ShoppingBag className="w-12 h-12 mb-3 text-gray-300" />
                 <p className="text-base font-medium">Aucune commande trouvée</p>
@@ -197,7 +198,7 @@ export default function CommandesPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table role="table" aria-label="Liste des commandes" className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -243,8 +244,8 @@ export default function CommandesPage() {
                             {formatCurrency(order.totalTTC)}
                           </td>
                           <td className="px-6 py-4">
-                            <Badge className={`gap-1 ${cfg.color}`}>
-                              <IconComponent className="w-3 h-3" />
+                            <Badge aria-label={`Statut: ${cfg.label}`} className={`gap-1 ${cfg.color}`}>
+                              <IconComponent className="w-3 h-3" aria-hidden="true" />
                               {cfg.label}
                             </Badge>
                           </td>
@@ -257,15 +258,16 @@ export default function CommandesPage() {
                                   onClick={() => handleAdvanceStatus(order)}
                                   disabled={isUpdating}
                                   className="text-xs"
+                                  aria-label={`Passer la commande ${order.numero} en ${statusConfig[nextStatus].label}`}
                                 >
                                   {isUpdating ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
                                   ) : (
                                     `→ ${statusConfig[nextStatus].label}`
                                   )}
                                 </Button>
                               )}
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" aria-label={`Voir la commande ${order.numero}`}>
                                 Voir
                               </Button>
                             </div>
@@ -279,7 +281,7 @@ export default function CommandesPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 }

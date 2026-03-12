@@ -31,7 +31,7 @@ export default function Header({ title, subtitle, actions }: HeaderProps) {
   ]);
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+    <header role="banner" className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
       {/* Left */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">{title}</h1>
@@ -39,42 +39,46 @@ export default function Header({ title, subtitle, actions }: HeaderProps) {
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-4">
+      <nav aria-label="Actions de l'en-tête" className="flex items-center gap-4">
         {/* Search */}
         <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" aria-hidden="true" />
           <Input
             type="search"
             placeholder="Rechercher..."
             className="pl-10 w-64"
+            aria-label="Recherche globale"
           />
         </div>
 
         {/* Depot selector */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-          <Building2 className="w-4 h-4 text-gray-500" />
+        <div className="hidden lg:flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg" aria-label="Dépôt sélectionné">
+          <Building2 className="w-4 h-4 text-gray-500" aria-hidden="true" />
           <span className="text-sm font-medium text-gray-700">
             {user?.depot === 'lyon' && 'Lyon'}
             {user?.depot === 'montpellier' && 'Montpellier'}
             {user?.depot === 'bordeaux' && 'Bordeaux'}
             {!user?.depot && 'Tous les dépôts'}
           </span>
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+          <ChevronDown className="w-4 h-4 text-gray-400" aria-hidden="true" />
         </div>
 
         {/* Notifications */}
         <div className="relative">
-          <button className="relative p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-            <Bell className="w-5 h-5" />
+          <button
+            className="relative p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label={`Notifications${notifications.length > 0 ? ` — ${notifications.length} non lues` : ''}`}
+          >
+            <Bell className="w-5 h-5" aria-hidden="true" />
             {notifications.length > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" aria-hidden="true" />
             )}
           </button>
         </div>
 
         {/* Quick action */}
         {actions}
-      </div>
+      </nav>
     </header>
   );
 }

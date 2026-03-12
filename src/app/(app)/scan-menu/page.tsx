@@ -94,6 +94,9 @@ export default function ScanMenuPage() {
     setIsAnalyzing(true);
     setError(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
     try {
       const response = await fetch(SCAN_API_URL, {
         method: 'POST',
@@ -101,23 +104,29 @@ export default function ScanMenuPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ image: selectedImage }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
         throw new Error('Erreur lors de l\'analyse');
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ScanResult;
 
       if (data.success) {
         setResult(data);
       } else {
-        setError(data.erreur || 'Erreur lors de l\'analyse du menu');
+        setError(data.erreur ?? 'Erreur lors de l\'analyse du menu');
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erreur de connexion au serveur';
-      setError(message);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('L\'analyse a pris trop de temps. Veuillez réessayer.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Erreur de connexion au serveur';
+        setError(message);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsAnalyzing(false);
     }
   };

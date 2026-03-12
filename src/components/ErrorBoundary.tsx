@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 
@@ -26,14 +27,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    // Report to Sentry in production (silent in dev)
-    if (process.env.NODE_ENV === 'production') {
-      import('@sentry/nextjs').then(({ captureException }) => {
-        captureException(error, {
-          extra: { componentStack: info.componentStack, context: this.props.context },
-        });
-      }).catch(() => {});
-    }
+    Sentry.captureException(error, {
+      extra: { componentStack: info.componentStack, context: this.props.context },
+    });
   }
 
   render() {

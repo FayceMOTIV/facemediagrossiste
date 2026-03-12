@@ -40,7 +40,7 @@ const categoryOptions: { key: CategoryFilter; label: string }[] = [
   { key: 'boissons', label: 'Boissons' },
 ];
 
-function StockProgressBar({ actuel, minimum }: { actuel: number; minimum: number }) {
+function StockProgressBar({ actuel, minimum, nom }: { actuel: number; minimum: number; nom: string }) {
   const max = minimum * 3;
   const pct = Math.min(100, max > 0 ? Math.round((actuel / max) * 100) : 0);
   const barColor =
@@ -54,7 +54,14 @@ function StockProgressBar({ actuel, minimum }: { actuel: number; minimum: number
 
   return (
     <div className="w-24">
-      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div
+        role="progressbar"
+        aria-valuenow={actuel}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-label={`Stock de ${nom}`}
+        className="h-2 bg-gray-200 rounded-full overflow-hidden"
+      >
         <div
           className={`h-full rounded-full ${barColor}`}
           style={{ width: `${pct}%` }}
@@ -106,7 +113,7 @@ export default function StocksPage() {
         subtitle="Suivi en temps réel des niveaux de stock"
       />
 
-      <div className="p-6">
+      <main id="main-content" className="p-6">
         {/* Hero card */}
         <Card className="mb-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0">
           <CardContent className="p-6">
@@ -278,7 +285,7 @@ export default function StocksPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">{item.stockMinimum}</td>
                           <td className="px-4 py-3">
-                            <StockProgressBar actuel={item.stockActuel} minimum={item.stockMinimum} />
+                            <StockProgressBar actuel={item.stockActuel} minimum={item.stockMinimum} nom={item.nom} />
                           </td>
                           <td className="px-4 py-3">
                             <Badge className={urg.color}>{urg.label}</Badge>
@@ -295,7 +302,7 @@ export default function StocksPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 }
