@@ -30,6 +30,9 @@ const firebaseConfig = {
   storageBucket: requiredEnvVars.storageBucket!,
   messagingSenderId: requiredEnvVars.messagingSenderId!,
   appId: requiredEnvVars.appId!,
+  ...(process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    ? { databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL }
+    : {}),
 };
 
 // Initialize Firebase (évite double init en dev)
