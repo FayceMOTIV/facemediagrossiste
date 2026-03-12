@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/services/email/email-service';
 import { devisEmailTemplate, commandeConfirmationTemplate } from '@/services/email/templates';

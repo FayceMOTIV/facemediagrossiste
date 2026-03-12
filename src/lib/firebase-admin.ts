@@ -59,9 +59,35 @@ export const verifySessionToken = async (
   }
 };
 
+// Verify a Firebase session cookie (for middleware + API route auth)
+export const verifySessionCookieData = async (
+  sessionCookie: string,
+  checkRevoked = false
+): Promise<{
+  uid: string;
+  role: string;
+  depot?: string;
+  staff?: boolean;
+  email?: string;
+} | null> => {
+  try {
+    const adminAuth = getAdminAuth();
+    const decoded = await adminAuth.verifySessionCookie(sessionCookie, checkRevoked);
+    return {
+      uid: decoded.uid,
+      role: (decoded['role'] as string) ?? 'client',
+      depot: decoded['depot'] as string | undefined,
+      staff: decoded['staff'] as boolean | undefined,
+      email: decoded.email,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const setCustomClaims = async (
   uid: string,
-  claims: { role: string; depot?: string }
+  claims: { role: string; depot?: string; staff?: boolean }
 ): Promise<void> => {
   const adminAuth = getAdminAuth();
   await adminAuth.setCustomUserClaims(uid, claims);

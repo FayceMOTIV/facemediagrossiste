@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { generateObject } from 'ai';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';

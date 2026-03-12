@@ -1,5 +1,6 @@
+export const runtime = 'nodejs';
+
 import { generateText } from 'ai';
-import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
 import { NextRequest, NextResponse } from 'next/server';
@@ -43,49 +44,33 @@ Génère:
 
 Réponds en français, sois concis et actionnable.`;
 
-    let text: string;
-    let model: string;
+    const result = await generateText({
+      model: openaiProvider('gpt-4o-mini'),
+      prompt,
+      maxOutputTokens: 800,
+    });
 
-    try {
-      const result = await generateText({
-        model: googleProvider('gemini-2.5-flash-lite-preview-06-17'),
-        prompt,
-        maxOutputTokens: 800,
-      });
-      text = result.text;
-      model = 'gemini-2.5-flash-lite';
-
-      await logAICall(
-        'business-analyst',
-        model,
-        prompt,
-        text,
-        {
-          input: result.usage.inputTokens ?? 0,
-          output: result.usage.outputTokens ?? 0,
-        },
-        userId
-      ).catch(() => {});
-    } catch {
-      const result = await generateText({
-        model: openaiProvider('gpt-4o-mini'),
-        prompt,
-        maxOutputTokens: 800,
-      });
-      text = result.text;
-      model = 'gpt-4o-mini-fallback';
-    }
+    await logAICall(
+      'business-analyst',
+      'gpt-4o-mini',
+      prompt,
+      result.text,
+      {
+        input: result.usage.inputTokens ?? 0,
+        output: result.usage.outputTokens ?? 0,
+      },
+      userId
+    ).catch(() => {});
 
     return NextResponse.json({
-      analysis: text,
-      model,
+      analysis: result.text,
+      model: 'gpt-4o-mini',
       generatedAt: new Date().toISOString(),
     });
   } catch {
     return NextResponse.json(
       {
-        error:
-          'Analyse temporairement indisponible. Réessayez dans quelques instants.',
+        error: 'Analyse temporairement indisponible. Réessayez dans quelques instants.',
       },
       { status: 500 }
     );

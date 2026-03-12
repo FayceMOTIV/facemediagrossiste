@@ -1,5 +1,7 @@
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+
 import { streamText, type ModelMessage } from 'ai';
-import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
 import { withRetry } from '@/lib/ai-retry';
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const { messages, userId, clientHistory } = body;
 
-    const systemPrompt = `Tu es un assistant commercial IA expert pour DISTRAM, grossiste halal B2B.
+    const system = `Tu es un assistant commercial IA expert pour DISTRAM, grossiste halal B2B.
 Tu aides les commerciaux à préparer leurs visites, générer des devis et identifier des opportunités.
 
 CATALOGUE (produits phares) :
@@ -40,42 +42,26 @@ ${clientHistory ? `Historique client: ${JSON.stringify(clientHistory)}` : ''}
 Génère des devis précis avec références produits, quantités et prix HT.
 Propose des stratégies d'upsell contextuelles. Réponds en français.`;
 
-    const primaryModel = googleProvider('gemini-2.5-flash-lite-preview-06-17');
-    const system = systemPrompt;
-    let result;
-    try {
-      result = await withRetry(() =>
-        Promise.resolve(
-          streamText({
-            model: primaryModel,
-            system,
-            messages,
-            maxOutputTokens: 1500,
-            onFinish: async ({ text, usage }) => {
-              await logAICall(
-                'assistant-commercial',
-                'gemini-2.5-flash-lite',
-                (messages[messages.length - 1]?.content as string) ?? '',
-                text,
-                { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
-                userId
-              ).catch(() => {});
-            },
-          })
-        )
-      );
-    } catch {
-      result = await withRetry(() =>
-        Promise.resolve(
-          streamText({
-            model: openaiProvider('gpt-4o-mini'),
-            system,
-            messages,
-            maxOutputTokens: 1500,
-          })
-        )
-      );
-    }
+    const result = await withRetry(() =>
+      Promise.resolve(
+        streamText({
+          model: openaiProvider('gpt-4o-mini'),
+          system,
+          messages,
+          maxOutputTokens: 1500,
+          onFinish: async ({ text, usage }) => {
+            await logAICall(
+              'assistant-commercial',
+              'gpt-4o-mini',
+              (messages[messages.length - 1]?.content as string) ?? '',
+              text,
+              { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+              userId
+            ).catch(() => {});
+          },
+        })
+      )
+    );
 
     return result.toTextStreamResponse();
   } catch {

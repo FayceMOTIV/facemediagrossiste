@@ -1,5 +1,7 @@
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+
 import { streamText, type ModelMessage } from 'ai';
-import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
 import { withRetry } from '@/lib/ai-retry';
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const { messages, userId, clientContext } = body;
 
-    const systemPrompt = `Tu es un assistant commercial expert pour DISTRAM, grossiste alimentaire halal.
+    const system = `Tu es un assistant commercial expert pour DISTRAM, grossiste alimentaire halal.
 Tu aides les restaurants (kebabs, tacos, pizzerias, burgers) à commander et trouver les bons produits.
 
 ${CATALOG_CONTEXT}
@@ -39,62 +41,32 @@ Règles :
 - Propose des quantités réalistes pour une semaine selon le type de restaurant
 - Si tu détectes un besoin, propose des produits complémentaires`;
 
-    // Primary: Gemini 2.5 Flash-Lite (chat libre, streaming)
-    // Fallback: gpt-4o-mini si Gemini indisponible
-    const primaryModel = googleProvider('gemini-2.5-flash-lite-preview-06-17');
-    const system = systemPrompt;
-    let result;
-    try {
-      result = await withRetry(() =>
-        Promise.resolve(
-          streamText({
-            model: primaryModel,
-            system,
-            messages,
-            maxOutputTokens: 1000,
-            onFinish: async ({ text, usage }) => {
-              await logAICall(
-                'assistant-client',
-                'gemini-2.5-flash-lite',
-                (messages[messages.length - 1]?.content as string) ?? '',
-                text,
-                { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
-                userId
-              ).catch(() => {});
-            },
-          })
-        )
-      );
-    } catch {
-      // Fallback to gpt-4o-mini
-      result = await withRetry(() =>
-        Promise.resolve(
-          streamText({
-            model: openaiProvider('gpt-4o-mini'),
-            system,
-            messages,
-            maxOutputTokens: 1000,
-            onFinish: async ({ text, usage }) => {
-              await logAICall(
-                'assistant-client-fallback',
-                'gpt-4o-mini',
-                (messages[messages.length - 1]?.content as string) ?? '',
-                text,
-                { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
-                userId
-              ).catch(() => {});
-            },
-          })
-        )
-      );
-    }
+    const result = await withRetry(() =>
+      Promise.resolve(
+        streamText({
+          model: openaiProvider('gpt-4o-mini'),
+          system,
+          messages,
+          maxOutputTokens: 1000,
+          onFinish: async ({ text, usage }) => {
+            await logAICall(
+              'assistant-client',
+              'gpt-4o-mini',
+              (messages[messages.length - 1]?.content as string) ?? '',
+              text,
+              { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+              userId
+            ).catch(() => {});
+          },
+        })
+      )
+    );
 
     return result.toTextStreamResponse();
   } catch {
     return new Response(
       JSON.stringify({
-        error:
-          'Service temporairement indisponible. Réessayez dans quelques secondes.',
+        error: 'Service temporairement indisponible. Réessayez dans quelques secondes.',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );

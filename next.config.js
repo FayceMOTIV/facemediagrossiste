@@ -10,7 +10,14 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    serverComponentsExternalPackages: [],
+    serverComponentsExternalPackages: [
+      'firebase-admin',
+      'firebase-admin/app',
+      'firebase-admin/auth',
+      'firebase-admin/firestore',
+      'firebase-admin/messaging',
+      'google-auth-library',
+    ],
   },
   webpack: (config) => {
     // Explicit alias fallback — guarantees @/ resolution even when Firebase

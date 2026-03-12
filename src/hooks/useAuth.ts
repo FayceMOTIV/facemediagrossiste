@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   loginWithEmail,
   logout as firebaseLogout,
   onAuthChange,
   resetPassword,
-  AppUser
+  AppUser,
 } from '@/services/firebase/auth';
+import { auth } from '@/services/firebase/config';
 
 // Type guard for Firebase Auth errors
 interface FirebaseAuthError extends Error {
@@ -18,14 +19,35 @@ function isFirebaseAuthError(error: unknown): error is FirebaseAuthError {
   return error instanceof Error && 'code' in error;
 }
 
-// Gestion du cookie de session pour le middleware
-function setSessionCookie(user: AppUser) {
-  const payload = btoa(JSON.stringify({ uid: user.uid, role: user.role, depot: user.depot }));
-  document.cookie = `fastgross_session=${payload}; path=/; SameSite=Strict; max-age=86400`;
+async function createServerSession(idToken: string): Promise<{ role?: string; needsRefresh?: boolean }> {
+  const res = await fetch('/api/auth/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+  if (!res.ok) return {};
+  return res.json();
 }
 
-function clearSessionCookie() {
-  document.cookie = 'fastgross_session=; path=/; max-age=0';
+async function ensureSession(forceRefresh = false): Promise<string | null> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+
+  try {
+    const idToken = await currentUser.getIdToken(forceRefresh);
+    const data = await createServerSession(idToken);
+
+    if (data.needsRefresh) {
+      // Custom claims were just set — refresh token to include them
+      const freshToken = await currentUser.getIdToken(true);
+      await createServerSession(freshToken);
+      return data.role ?? null;
+    }
+
+    return data.role ?? null;
+  } catch {
+    return null;
+  }
 }
 
 interface AuthState {
@@ -41,13 +63,18 @@ export function useAuth() {
     error: null,
   });
   const router = useRouter();
+  const sessionCreated = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthChange((user) => {
-      if (user) {
-        setSessionCookie(user);
-      } else {
-        clearSessionCookie();
+    const unsubscribe = onAuthChange(async (user) => {
+      if (user && !sessionCreated.current) {
+        sessionCreated.current = true;
+        // Ensure __session cookie is valid (non-blocking)
+        ensureSession().catch(() => {});
+      } else if (!user) {
+        sessionCreated.current = false;
+        // User signed out — delete server session
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
       }
       setState({ user, loading: false, error: null });
     });
@@ -55,58 +82,72 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    try {
-      const user = await loginWithEmail(email, password);
-      setSessionCookie(user);
-      setState({ user, loading: false, error: null });
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        const user = await loginWithEmail(email, password);
 
-      // Redirection selon le rôle
-      if (user.role === 'livreur') {
-        router.push('/livraisons');
-      } else if (user.role === 'client') {
-        router.push('/commandes');
-      } else {
-        router.push('/dashboard');
+        // Create server-side __session cookie
+        sessionCreated.current = true;
+        await ensureSession();
+
+        setState({ user, loading: false, error: null });
+
+        // Redirect based on role
+        if (user.role === 'livreur') {
+          router.push('/livraisons');
+        } else if (user.role === 'client') {
+          router.push('/commandes');
+        } else {
+          router.push('/dashboard');
+        }
+
+        return user;
+      } catch (error: unknown) {
+        const message = isFirebaseAuthError(error)
+          ? getErrorMessage(error.code)
+          : 'Une erreur est survenue';
+        setState((prev) => ({ ...prev, loading: false, error: message }));
+        throw new Error(message);
       }
-
-      return user;
-    } catch (error: unknown) {
-      const message = isFirebaseAuthError(error) ? getErrorMessage(error.code) : 'Une erreur est survenue';
-      setState(prev => ({ ...prev, loading: false, error: message }));
-      throw new Error(message);
-    }
-  }, [router]);
+    },
+    [router]
+  );
 
   const logout = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true }));
+    setState((prev) => ({ ...prev, loading: true }));
     try {
+      // Delete server session first
+      await fetch('/api/auth/logout', { method: 'POST' });
       await firebaseLogout();
-      clearSessionCookie();
+      sessionCreated.current = false;
       setState({ user: null, loading: false, error: null });
       router.push('/login');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erreur lors de la déconnexion';
-      setState(prev => ({ ...prev, loading: false, error: message }));
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la déconnexion';
+      setState((prev) => ({ ...prev, loading: false, error: message }));
     }
   }, [router]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
+    setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       await resetPassword(email);
-      setState(prev => ({ ...prev, loading: false }));
+      setState((prev) => ({ ...prev, loading: false }));
       return true;
     } catch (error: unknown) {
-      const message = isFirebaseAuthError(error) ? getErrorMessage(error.code) : 'Une erreur est survenue';
-      setState(prev => ({ ...prev, loading: false, error: message }));
+      const message = isFirebaseAuthError(error)
+        ? getErrorMessage(error.code)
+        : 'Une erreur est survenue';
+      setState((prev) => ({ ...prev, loading: false, error: message }));
       throw new Error(message);
     }
   }, []);
 
   const clearError = useCallback(() => {
-    setState(prev => ({ ...prev, error: null }));
+    setState((prev) => ({ ...prev, error: null }));
   }, []);
 
   return {
@@ -115,8 +156,12 @@ export function useAuth() {
     error: state.error,
     isAuthenticated: !!state.user,
     isAdmin: state.user?.role === 'admin',
-    isManager: state.user?.role === 'manager' || state.user?.role === 'admin',
-    isCommercial: state.user?.role === 'commercial' || state.user?.role === 'manager' || state.user?.role === 'admin',
+    isManager:
+      state.user?.role === 'manager' || state.user?.role === 'admin',
+    isCommercial:
+      state.user?.role === 'commercial' ||
+      state.user?.role === 'manager' ||
+      state.user?.role === 'admin',
     isLivreur: state.user?.role === 'livreur',
     login,
     logout,
