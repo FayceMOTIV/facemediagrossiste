@@ -1,63 +1,76 @@
-import { streamText, convertToModelMessages, type UIMessage } from 'ai';
+import { streamText, type ModelMessage } from 'ai';
+import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
 import { NextRequest } from 'next/server';
 
+const UPSELL_STRATEGIES = `
+STRATÉGIES UPSELL DISTRAM :
+- Client kebab sans frites → opportunité +180€/mois
+- Client tacos sans sauce tacos → opportunité +60€/mois
+- Client qui commande viande sans pain → proposition pack complet -5%
+- Fidélisation Gold (CA > 5k€/mois): remise 5% engagement annuel
+- Fidélisation Silver (CA 2-5k€/mois): remise 3% engagement annuel
+`;
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const messages: UIMessage[] = body.messages ?? [];
-    const userId: string | undefined = body.userId;
-    const clientHistory: unknown = body.clientHistory;
+    const body = (await req.json()) as {
+      messages: ModelMessage[];
+      userId?: string;
+      clientHistory?: Record<string, unknown>;
+    };
+
+    const { messages, userId, clientHistory } = body;
 
     const systemPrompt = `Tu es un assistant commercial IA expert pour DISTRAM, grossiste halal B2B.
 Tu aides les commerciaux à préparer leurs visites, générer des devis et identifier des opportunités.
 
-CATALOGUE DISTRAM (produits phares):
-- Broches kebab bœuf/veau 10kg: 75€ | 15kg: 105€ | Poulet 10kg: 68€
-- Pain pita 16cm x100: 18€ | Galette durum: 20€
-- Sauce kebab 10L: 25€ | Sauce blanche 10L: 22€ | Harissa 10L: 18€
-- Frites classic 5kg x4: 28€ | Allumettes 5kg x4: 30€
+CATALOGUE (produits phares) :
+Broches kebab bœuf/veau 10kg: 75€ | 15kg: 105€ | Poulet 10kg: 68€
+Pain pita 16cm×100: 18€ | Galette durum: 20€
+Sauce kebab 10L: 25€ | Sauce blanche 10L: 22€ | Harissa 10L: 18€
+Frites classic 5kg×4: 28€ | Allumettes 5kg×4: 30€
 
-STRATÉGIES COMMERCIALES:
-- Client kebab sans frites DISTRAM → opportunité +€180/mois
-- Client tacos sans sauce tacos → opportunité +€60/mois
-- Client qui commande de la viande mais pas le pain → proposition pack complet
-- Fidélisation Gold/Silver: proposer remise 3-5% pour engagement annuel
+${UPSELL_STRATEGIES}
 
 ${clientHistory ? `Historique client: ${JSON.stringify(clientHistory)}` : ''}
 
 Génère des devis précis avec références produits, quantités et prix HT.
 Propose des stratégies d'upsell contextuelles. Réponds en français.`;
 
-    const modelMessages = await convertToModelMessages(messages);
-    const lastUserMessage = messages.findLast((m) => m.role === 'user');
-    const lastUserText =
-      lastUserMessage?.parts.find((p) => p.type === 'text')?.text ?? '';
+    let result;
+    try {
+      result = streamText({
+        model: googleProvider('gemini-2.5-flash-lite-preview-06-17'),
+        system: systemPrompt,
+        messages,
+        maxOutputTokens: 1500,
+        onFinish: async ({ text, usage }) => {
+          await logAICall(
+            'assistant-commercial',
+            'gemini-2.5-flash-lite',
+            (messages[messages.length - 1]?.content as string) ?? '',
+            text,
+            { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+            userId
+          ).catch(() => {});
+        },
+      });
+    } catch {
+      result = streamText({
+        model: openaiProvider('gpt-4o-mini'),
+        system: systemPrompt,
+        messages,
+        maxOutputTokens: 1500,
+      });
+    }
 
-    const result = streamText({
-      model: openaiProvider('gpt-4o'),
-      system: systemPrompt,
-      messages: modelMessages,
-      maxOutputTokens: 1500,
-      onFinish: async ({ text, usage }) => {
-        await logAICall(
-          'commercial-assistant',
-          'gpt-4o',
-          lastUserText,
-          text,
-          {
-            input: usage.inputTokens ?? 0,
-            output: usage.outputTokens ?? 0,
-          },
-          userId
-        );
-      },
-    });
-
-    return result.toUIMessageStreamResponse();
-  } catch (error) {
-    console.error('Commercial API error:', error);
-    return new Response('Erreur interne', { status: 500 });
+    return result.toTextStreamResponse();
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'Service temporairement indisponible.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }

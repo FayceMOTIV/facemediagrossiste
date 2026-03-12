@@ -90,8 +90,8 @@ export default function EquipePage() {
         'user',
         employee.id
       );
-    } catch (err) {
-      console.error('Failed to toggle employee status:', err);
+    } catch {
+      // Error is silently swallowed — the UI reflects the unchanged status
     } finally {
       setTogglingId(null);
     }

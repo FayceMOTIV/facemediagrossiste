@@ -107,8 +107,8 @@ export default function AntiChurnPage() {
       const result: ChurnAnalysisResult = await response.json();
       setAnalyses((prev) => ({ ...prev, [clientId]: result }));
       setModalClientId(clientId);
-    } catch (err) {
-      console.error('Churn analysis error:', err);
+    } catch {
+      // Error is silently swallowed — UI remains unchanged (no analysis result shown)
     } finally {
       setLoadingAnalysis(null);
     }

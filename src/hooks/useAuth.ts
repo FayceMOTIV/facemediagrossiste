@@ -10,6 +10,14 @@ import {
   AppUser
 } from '@/services/firebase/auth';
 
+// Type guard for Firebase Auth errors
+interface FirebaseAuthError extends Error {
+  code: string;
+}
+function isFirebaseAuthError(error: unknown): error is FirebaseAuthError {
+  return error instanceof Error && 'code' in error;
+}
+
 // Gestion du cookie de session pour le middleware
 function setSessionCookie(user: AppUser) {
   const payload = btoa(JSON.stringify({ uid: user.uid, role: user.role, depot: user.depot }));
@@ -64,8 +72,8 @@ export function useAuth() {
       }
 
       return user;
-    } catch (error: any) {
-      const message = getErrorMessage(error.code);
+    } catch (error: unknown) {
+      const message = isFirebaseAuthError(error) ? getErrorMessage(error.code) : 'Une erreur est survenue';
       setState(prev => ({ ...prev, loading: false, error: message }));
       throw new Error(message);
     }
@@ -78,8 +86,9 @@ export function useAuth() {
       clearSessionCookie();
       setState({ user: null, loading: false, error: null });
       router.push('/login');
-    } catch (error: any) {
-      setState(prev => ({ ...prev, loading: false, error: 'Erreur lors de la déconnexion' }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la déconnexion';
+      setState(prev => ({ ...prev, loading: false, error: message }));
     }
   }, [router]);
 
@@ -89,8 +98,8 @@ export function useAuth() {
       await resetPassword(email);
       setState(prev => ({ ...prev, loading: false }));
       return true;
-    } catch (error: any) {
-      const message = getErrorMessage(error.code);
+    } catch (error: unknown) {
+      const message = isFirebaseAuthError(error) ? getErrorMessage(error.code) : 'Une erreur est survenue';
       setState(prev => ({ ...prev, loading: false, error: message }));
       throw new Error(message);
     }

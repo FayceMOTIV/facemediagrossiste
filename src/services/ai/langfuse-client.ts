@@ -1,9 +1,18 @@
 // Langfuse observability - logs all AI calls
 // Only active when LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are set
 
-let langfuseInstance: unknown = null;
+interface LangfuseTrace {
+  generation: (options: Record<string, unknown>) => void;
+}
 
-async function getLangfuse(): Promise<unknown> {
+interface LangfuseInstance {
+  trace: (options: { name: string; userId?: string; metadata?: Record<string, unknown>; input?: unknown }) => LangfuseTrace;
+  flushAsync: () => Promise<void>;
+}
+
+let langfuseInstance: LangfuseInstance | null = null;
+
+async function getLangfuse(): Promise<LangfuseInstance | null> {
   if (langfuseInstance) return langfuseInstance;
 
   const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
@@ -17,7 +26,7 @@ async function getLangfuse(): Promise<unknown> {
       publicKey,
       secretKey,
       baseUrl: process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com',
-    });
+    }) as unknown as LangfuseInstance;
     return langfuseInstance;
   } catch {
     return null;
@@ -34,8 +43,7 @@ export interface TraceOptions {
 export async function createTrace(options: TraceOptions) {
   const lf = await getLangfuse();
   if (!lf) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (lf as any).trace({
+  return lf.trace({
     name: options.name,
     userId: options.userId,
     metadata: options.metadata,
@@ -54,9 +62,7 @@ export async function logAICall(
   const lf = await getLangfuse();
   if (!lf) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lfAny = lf as any;
-  const trace = lfAny.trace({ name: traceName, userId });
+  const trace = lf.trace({ name: traceName, userId });
   trace.generation({
     name: `${traceName}-generation`,
     model,
@@ -65,5 +71,5 @@ export async function logAICall(
     usage: tokens ? { input: tokens.input, output: tokens.output } : undefined,
   });
 
-  await lfAny.flushAsync().catch(() => {});
+  await lf.flushAsync().catch(() => {});
 }

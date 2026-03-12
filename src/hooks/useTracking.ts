@@ -84,8 +84,9 @@ export function useLivreurTracking(livreurId: string, livreurNom: string) {
             status: 'en_route',
           });
           setError(null);
-        } catch (err: any) {
-          setError('Erreur de mise à jour position');
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : 'Erreur de tracking';
+          setError(errorMessage);
         }
       },
       (err) => {
@@ -113,8 +114,9 @@ export function useLivreurTracking(livreurId: string, livreurNom: string) {
   const updateStatus = useCallback(async (status: LivreurPosition['status'], currentDelivery?: string) => {
     try {
       await updateLivreurPosition(livreurId, { status, currentDelivery });
-    } catch (err: any) {
-      setError('Erreur de mise à jour statut');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur de tracking';
+      setError(errorMessage);
     }
   }, [livreurId]);
 
@@ -145,8 +147,9 @@ export function useDeliveryStatus(deliveryId: string) {
     setError(null);
     try {
       await updateDeliveryStatus(deliveryId, status);
-    } catch (err: any) {
-      setError('Erreur de mise à jour');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur de tracking';
+      setError(errorMessage);
     } finally {
       setUpdating(false);
     }

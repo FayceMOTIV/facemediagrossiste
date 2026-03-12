@@ -21,6 +21,16 @@ const STATUS_COLORS: Record<string, string> = {
   termine: '#22c55e',
 };
 
+// MapLibre is loaded dynamically — use minimal interfaces
+interface MapLibreMap {
+  on: (event: string, callback: () => void) => void;
+  remove: () => void;
+  fitBounds: (bounds: unknown, options: Record<string, unknown>) => void;
+}
+interface MapLibreMarker {
+  remove: () => void;
+}
+
 export default function LiveMap({
   positions,
   centerLat = 45.75,
@@ -31,18 +41,15 @@ export default function LiveMap({
   onLivreurClick,
 }: LiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markersRef = useRef<Map<string, any>>(new Map());
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markersRef = useRef<Map<string, MapLibreMarker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
 
   // Initialize map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let map: any;
+    let map: MapLibreMap | undefined;
 
     const initMap = async () => {
       const maplibregl = (await import('maplibre-gl')).default;
@@ -62,15 +69,15 @@ export default function LiveMap({
         style: 'https://demotiles.maplibre.org/style.json',
         center: [centerLng, centerLat],
         zoom,
-      });
+      }) as unknown as MapLibreMap;
 
       map.on('load', () => {
-        mapRef.current = map;
+        mapRef.current = map ?? null;
         setMapLoaded(true);
       });
     };
 
-    initMap().catch(console.error);
+    initMap().catch(() => {});
 
     return () => {
       if (map) {
@@ -89,6 +96,7 @@ export default function LiveMap({
     const initMarkers = async () => {
       const maplibregl = (await import('maplibre-gl')).default;
       const map = mapRef.current;
+      if (!map) return;
 
       // Remove old markers
       markersRef.current.forEach(marker => marker.remove());
@@ -137,7 +145,7 @@ export default function LiveMap({
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat([pos.lng, pos.lat])
           .setPopup(popup)
-          .addTo(map);
+          .addTo(map as unknown as import('maplibre-gl').Map);
 
         markersRef.current.set(pos.id, marker);
       });
@@ -159,7 +167,7 @@ export default function LiveMap({
       }
     };
 
-    initMarkers().catch(console.error);
+    initMarkers().catch(() => {});
   }, [positions, mapLoaded, selectedLivreurId, onLivreurClick]);
 
   return (

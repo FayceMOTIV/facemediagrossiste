@@ -114,9 +114,9 @@ export default function ScanMenuPage() {
       } else {
         setError(data.erreur || 'Erreur lors de l\'analyse du menu');
       }
-    } catch (err: any) {
-      console.error('Erreur:', err);
-      setError(err.message || 'Erreur de connexion au serveur');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur de connexion au serveur';
+      setError(message);
     } finally {
       setIsAnalyzing(false);
     }
@@ -144,7 +144,8 @@ export default function ScanMenuPage() {
   };
 
   const handleCreateOrder = () => {
-    console.log('Creating order with:', result);
+    if (!result) return;
+    // TODO: implement order creation from scan result
   };
 
   const getTypeIcon = (type: string) => {

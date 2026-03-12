@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,8 @@ import {
   Plus
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { subscribeToCollection, COLLECTIONS } from '@/services/firebase/firestore';
+import type { Prospect } from '@/types';
 
 interface ProspectResult {
   score: number;
@@ -48,57 +50,44 @@ export default function ProspectionPage() {
   });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<ProspectResult | null>(null);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [loadingProspects, setLoadingProspects] = useState(true);
 
-  // Demo result
-  const demoResult: ProspectResult = {
-    score: 78,
-    scoreDetails: {
-      localisation: 18,
-      potentielCA: 22,
-      concurrence: 15,
-      accessibilite: 12,
-      reputation: 11,
-    },
-    potentielCA: 2850,
-    recommandation: 'haute',
-    argumentsVente: [
-      'Proximité de notre dépôt Lyon (livraison rapide)',
-      'Zone à forte densité de clientèle (gare Part-Dieu)',
-      'Bonne réputation en ligne (4.2 étoiles)',
-      'Potentiel de cross-selling sauces et boissons',
-    ],
-    emailPersonnalise: `Bonjour,
-
-Je me permets de vous contacter car j'ai remarqué votre établissement et sa belle réputation (4.2★ sur Google).
-
-DISTRAM est le grossiste n°1 en produits halal sur Lyon, et nous travaillons déjà avec plus de 150 kebabs dans la région.
-
-Ce que nous pouvons vous apporter :
-✓ Livraison gratuite dès 200€
-✓ Prix imbattables sur les broches (75€/10kg)
-✓ Livraison 2x/semaine avant 11h
-✓ Produits 100% halal certifiés
-
-Seriez-vous disponible cette semaine pour une présentation de 15 minutes ?
-
-Cordialement,
-L'équipe DISTRAM`,
-  };
+  useEffect(() => {
+    const unsubscribe = subscribeToCollection<Prospect>(
+      COLLECTIONS.PROSPECTS,
+      (data) => {
+        setProspects(data);
+        setLoadingProspects(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    setResult(demoResult);
-    setIsAnalyzing(false);
+    try {
+      const response = await fetch('/api/ai/prospect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: prospect.nom,
+          type: prospect.type,
+          adresse: prospect.adresse,
+          telephone: prospect.telephone,
+          avisGoogle: prospect.avisGoogle ? parseFloat(prospect.avisGoogle) : undefined,
+          nombreAvis: prospect.nombreAvis ? parseInt(prospect.nombreAvis, 10) : undefined,
+        }),
+      });
+      if (!response.ok) throw new Error('Erreur lors de l\'analyse');
+      const data: ProspectResult = await response.json();
+      setResult(data);
+    } catch {
+      // Error is handled silently — user sees no result, can retry
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
-
-  const demoProspects = [
-    { nom: 'Antalya Grill', type: 'kebab', ville: 'Lyon 8', score: 82, status: 'nouveau' },
-    { nom: 'Tacos Factory', type: 'tacos', ville: 'Villeurbanne', score: 75, status: 'contacte' },
-    { nom: 'Pizza Express', type: 'pizza', ville: 'Lyon 3', score: 68, status: 'rdv_planifie' },
-    { nom: 'Burger House', type: 'burger', ville: 'Lyon 7', score: 71, status: 'nouveau' },
-  ];
 
   return (
     <div className="min-h-screen">
@@ -143,7 +132,7 @@ L'équipe DISTRAM`,
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nom de l'établissement *
+                    Nom de l&apos;établissement *
                   </label>
                   <Input
                     value={prospect.nom}
@@ -221,7 +210,7 @@ L'équipe DISTRAM`,
                 ) : (
                   <>
                     <Sparkles className="w-5 h-5" />
-                    Analyser avec l'IA
+                    Analyser avec l&apos;IA
                   </>
                 )}
               </Button>
@@ -233,7 +222,7 @@ L'équipe DISTRAM`,
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
-                Résultat de l'analyse
+                Résultat de l&apos;analyse
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -318,48 +307,60 @@ L'équipe DISTRAM`,
           </Card>
         </div>
 
-        {/* Prospects list */}
+        {/* Prospects list from Firestore */}
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Prospects récents</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Établissement</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ville</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {demoProspects.map((p, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.nom}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 capitalize">{p.type}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{p.ville}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={p.score >= 75 ? 'success' : p.score >= 60 ? 'warning' : 'secondary'}>
-                          {p.score}/100
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline" className="capitalize">
-                          {p.status.replace('_', ' ')}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" size="sm">Voir</Button>
-                      </td>
+            {loadingProspects ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              </div>
+            ) : prospects.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Target className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="font-medium">Aucun prospect pour le moment</p>
+                <p className="text-sm">Analysez votre premier prospect ci-dessus</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Établissement</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ville</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {prospects.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{p.nom}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 capitalize">{p.type}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{p.ville}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={p.score >= 75 ? 'success' : p.score >= 60 ? 'warning' : 'secondary'}>
+                            {p.score}/100
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="capitalize">
+                            {p.status.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button variant="ghost" size="sm">Voir</Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

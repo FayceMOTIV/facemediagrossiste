@@ -11,6 +11,7 @@ import { AnimatedList } from '@/components/ui/animated-list';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/hooks/useAuth';
 import { subscribeToCollection, COLLECTIONS } from '@/services/firebase/firestore';
+import type { WhereFilterOp } from 'firebase/firestore';
 import { DEPOTS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils';
 import type { Alert, Client } from '@/types';
@@ -71,7 +72,7 @@ export default function SupervisionPage() {
 
   // Subscribe to critical clients (riskScore >= 70)
   useEffect(() => {
-    const constraints: { field: string; operator: string; value: unknown }[] = [
+    const constraints: { field: string; operator: WhereFilterOp; value: unknown }[] = [
       { field: 'riskScore', operator: '>=', value: 70 },
       { field: 'status', operator: '==', value: 'actif' },
     ];

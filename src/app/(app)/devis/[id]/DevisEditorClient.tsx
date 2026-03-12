@@ -14,13 +14,13 @@ import {
   ArrowLeft, Download, Copy,
   Check, X, Clock, ShoppingCart, Package, Store
 } from 'lucide-react';
-import { Devis, LigneDevis, DevisStatus } from '@/types/devis';
+import type React from 'react';
+import { Devis, LigneDevis, DevisStatus, ProduitRecommande } from '@/types/devis';
 import { CATALOGUE_DISTRAM } from '@/data/catalogue-distram-complet';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
+import { getById, update } from '@/services/firebase/firestore';
 import { formatCurrency } from '@/lib/utils';
 
-const STATUS_CONFIG: Record<DevisStatus, { label: string; color: string; icon: any }> = {
+const STATUS_CONFIG: Record<DevisStatus, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
   brouillon: { label: 'Brouillon', color: 'bg-gray-500', icon: FileText },
   envoye: { label: 'Envoye', color: 'bg-blue-500', icon: Send },
   consulte: { label: 'Consulte', color: 'bg-purple-500', icon: Clock },
@@ -62,7 +62,7 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
 
         // Convert products from scan
         if (data.produitsRecommandes) {
-          lignesProduits = data.produitsRecommandes.map((p: any, i: number) => ({
+          lignesProduits = (data.produitsRecommandes as ProduitRecommande[]).map((p, i) => ({
             id: `ligne-prod-${i}`,
             ref: p.ref,
             nom: p.nom,
@@ -79,7 +79,7 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
 
         // Convert emballages from scan
         if (data.emballagesRecommandes) {
-          lignesEmballages = data.emballagesRecommandes.map((p: any, i: number) => ({
+          lignesEmballages = (data.emballagesRecommandes as ProduitRecommande[]).map((p, i) => ({
             id: `ligne-emb-${i}`,
             ref: p.ref,
             nom: p.nom,
@@ -136,23 +136,23 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
 
   const loadDevis = async () => {
     try {
-      const docRef = doc(db, 'devis', devisId);
-      const docSnap = await getDoc(docRef);
+      const data = await getById<Devis & { dateCreation: { toDate?: () => Date } | Date; dateExpiration: { toDate?: () => Date } | Date }>('devis', devisId);
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+      if (data) {
         setDevis({
-          id: docSnap.id,
           ...data,
-          dateCreation: data.dateCreation?.toDate?.() || new Date(data.dateCreation),
-          dateExpiration: data.dateExpiration?.toDate?.() || new Date(data.dateExpiration),
+          dateCreation: typeof data.dateCreation === 'object' && data.dateCreation !== null && 'toDate' in data.dateCreation && typeof data.dateCreation.toDate === 'function'
+            ? data.dateCreation.toDate()
+            : new Date(data.dateCreation as unknown as string),
+          dateExpiration: typeof data.dateExpiration === 'object' && data.dateExpiration !== null && 'toDate' in data.dateExpiration && typeof data.dateExpiration.toDate === 'function'
+            ? data.dateExpiration.toDate()
+            : new Date(data.dateExpiration as unknown as string),
         } as Devis);
       } else {
         showToast('Devis non trouve');
         router.push('/devis');
       }
-    } catch (error) {
-      console.error('Erreur chargement devis:', error);
+    } catch {
       showToast('Erreur de chargement');
     } finally {
       setLoading(false);
@@ -261,16 +261,14 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
     setSaving(true);
 
     try {
-      const docRef = doc(db, 'devis', devis.id);
-      await setDoc(docRef, {
+      await update<Devis>('devis', devis.id, {
         ...devis,
         dateCreation: devis.dateCreation,
         dateExpiration: devis.dateExpiration,
       });
 
       showToast('Devis sauvegarde');
-    } catch (error) {
-      console.error('Erreur sauvegarde:', error);
+    } catch {
       showToast('Erreur de sauvegarde');
     } finally {
       setSaving(false);
@@ -297,12 +295,10 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
     setDevis(updated);
 
     try {
-      const docRef = doc(db, 'devis', devis.id);
-      await setDoc(docRef, updated);
+      await update<Devis>('devis', devis.id, updated);
       showToast('Devis envoye !');
       navigator.clipboard.writeText(lienPartage);
-    } catch (error) {
-      console.error('Erreur envoi:', error);
+    } catch {
       showToast('Erreur envoi');
     }
   };
@@ -320,12 +316,10 @@ export default function DevisEditorClient({ devisId }: DevisEditorClientProps) {
     setDevis(updated);
 
     try {
-      const docRef = doc(db, 'devis', devis.id);
-      await setDoc(docRef, updated);
+      await update<Devis>('devis', devis.id, updated);
       showToast(`Commande ${commandeId} creee !`);
       router.push('/commandes');
-    } catch (error) {
-      console.error('Erreur conversion:', error);
+    } catch {
       showToast('Erreur conversion');
     }
   };

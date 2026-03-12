@@ -10,6 +10,7 @@ import {
   subscribeToCollection,
   COLLECTIONS
 } from '@/services/firebase/firestore';
+import type { WhereFilterOp } from 'firebase/firestore';
 
 interface UseFirestoreState<T> {
   data: T[];
@@ -19,7 +20,7 @@ interface UseFirestoreState<T> {
 
 interface UseFirestoreOptions {
   realtime?: boolean;
-  filters?: { field: string; operator: any; value: any }[];
+  filters?: { field: string; operator: WhereFilterOp; value: unknown }[];
 }
 
 export function useFirestoreCollection<T>(
@@ -51,8 +52,9 @@ export function useFirestoreCollection<T>(
         try {
           const data = await getAll<T>(collectionName);
           setState({ data, loading: false, error: null });
-        } catch (error: any) {
-          setState({ data: [], loading: false, error: error.message });
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Une erreur est survenue';
+          setState({ data: [], loading: false, error: message });
         }
       };
       fetchData();
@@ -64,27 +66,30 @@ export function useFirestoreCollection<T>(
     try {
       const data = await getAll<T>(collectionName);
       setState({ data, loading: false, error: null });
-    } catch (error: any) {
-      setState(prev => ({ ...prev, loading: false, error: error.message }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Une erreur est survenue';
+      setState(prev => ({ ...prev, loading: false, error: message }));
     }
   }, [collectionName]);
 
   const add = useCallback(async (data: Omit<T, 'id'>) => {
     try {
-      const id = await create(collectionName, data as any);
+      const id = await create(collectionName, data as Record<string, unknown>);
       if (!realtime) await refresh();
       return id;
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Une erreur est survenue';
+      throw new Error(message);
     }
   }, [collectionName, realtime, refresh]);
 
   const updateItem = useCallback(async (id: string, data: Partial<T>) => {
     try {
-      await update(collectionName, id, data as any);
+      await update(collectionName, id, data as Record<string, unknown>);
       if (!realtime) await refresh();
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Une erreur est survenue';
+      throw new Error(message);
     }
   }, [collectionName, realtime, refresh]);
 
@@ -92,8 +97,9 @@ export function useFirestoreCollection<T>(
     try {
       await remove(collectionName, id);
       if (!realtime) await refresh();
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Une erreur est survenue';
+      throw new Error(message);
     }
   }, [collectionName, realtime, refresh]);
 
@@ -126,8 +132,9 @@ export function useFirestoreDocument<T>(collectionName: string, docId: string | 
         const doc = await getById<T>(collectionName, docId);
         setData(doc);
         setError(null);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Une erreur est survenue';
+        setError(message);
         setData(null);
       } finally {
         setLoading(false);
@@ -140,10 +147,11 @@ export function useFirestoreDocument<T>(collectionName: string, docId: string | 
   const updateDoc = useCallback(async (data: Partial<T>) => {
     if (!docId) return;
     try {
-      await update(collectionName, docId, data as any);
+      await update(collectionName, docId, data as Record<string, unknown>);
       setData(prev => prev ? { ...prev, ...data } : null);
-    } catch (err: any) {
-      throw new Error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Une erreur est survenue';
+      throw new Error(message);
     }
   }, [collectionName, docId]);
 
@@ -152,8 +160,9 @@ export function useFirestoreDocument<T>(collectionName: string, docId: string | 
     try {
       await remove(collectionName, docId);
       setData(null);
-    } catch (err: any) {
-      throw new Error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Une erreur est survenue';
+      throw new Error(message);
     }
   }, [collectionName, docId]);
 
@@ -162,20 +171,20 @@ export function useFirestoreDocument<T>(collectionName: string, docId: string | 
 
 // Hook spécialisé pour les clients
 export function useClients(options?: UseFirestoreOptions) {
-  return useFirestoreCollection<any>(COLLECTIONS.CLIENTS, options);
+  return useFirestoreCollection<Record<string, unknown>>(COLLECTIONS.CLIENTS, options);
 }
 
 // Hook spécialisé pour les commandes
 export function useOrders(options?: UseFirestoreOptions) {
-  return useFirestoreCollection<any>(COLLECTIONS.ORDERS, options);
+  return useFirestoreCollection<Record<string, unknown>>(COLLECTIONS.ORDERS, options);
 }
 
 // Hook spécialisé pour les produits
 export function useProducts(options?: UseFirestoreOptions) {
-  return useFirestoreCollection<any>(COLLECTIONS.PRODUCTS, options);
+  return useFirestoreCollection<Record<string, unknown>>(COLLECTIONS.PRODUCTS, options);
 }
 
 // Hook spécialisé pour les alertes
 export function useAlerts(options?: UseFirestoreOptions) {
-  return useFirestoreCollection<any>(COLLECTIONS.ALERTS, { realtime: true, ...options });
+  return useFirestoreCollection<Record<string, unknown>>(COLLECTIONS.ALERTS, { realtime: true, ...options });
 }

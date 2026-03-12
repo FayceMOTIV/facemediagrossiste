@@ -15,7 +15,8 @@ import {
   DocumentData,
   QueryConstraint,
   QuerySnapshot,
-  DocumentSnapshot
+  Query,
+  WhereFilterOp
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -82,13 +83,16 @@ export const queryCollection = async <T>(
 export const subscribeToCollection = <T>(
   collectionName: string,
   callback: (data: T[]) => void,
-  constraints?: { field: string; operator: any; value: any }[]
+  constraints?: { field: string; operator: WhereFilterOp; value: unknown }[]
 ) => {
-  let q: any = collection(db, collectionName);
+  let q: Query<DocumentData>;
 
   if (constraints && constraints.length > 0) {
-    const queryConstraints = constraints.map(c => where(c.field, c.operator, c.value));
-    q = query(q, ...queryConstraints);
+    const queryConstraints: QueryConstraint[] = constraints.map(c => where(c.field, c.operator, c.value));
+    queryConstraints.push(limit(500));
+    q = query(collection(db, collectionName), ...queryConstraints);
+  } else {
+    q = query(collection(db, collectionName), limit(500));
   }
 
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {

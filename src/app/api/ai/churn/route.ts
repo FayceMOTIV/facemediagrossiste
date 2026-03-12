@@ -89,8 +89,7 @@ Génère une analyse détaillée du risque de churn avec score final, actions re
     );
 
     return NextResponse.json({ ...object, clientId });
-  } catch (error) {
-    console.error('Churn API error:', error);
+  } catch {
     return NextResponse.json(
       { error: 'Erreur analyse churn' },
       { status: 500 }

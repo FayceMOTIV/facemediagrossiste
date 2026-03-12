@@ -1,67 +1,91 @@
-import { streamText, convertToModelMessages, type UIMessage } from 'ai';
+import { streamText, type ModelMessage } from 'ai';
+import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
 import { NextRequest } from 'next/server';
 
-// DISTRAM catalog summary for system prompt
-const CATALOG_SUMMARY = `
-CATALOGUE DISTRAM - Produits disponibles:
-- Viandes: Broches kebab boeuf/veau (10kg à 75€, 15kg à 105€), Poulet mariné, Viande hachée halal, Merguez
-- Pains: Pita 16cm x100 (18€), Pita 20cm x80 (22€), Galette durum 30cm x72 (20€)
-- Sauces: Sauce kebab, Sauce blanche, Harissa, Sauce tacos
-- Fromages: Edam tranches, Mozzarella râpée, Fromage fondu burger
-- Légumes: Chou blanc, Oignons, Tomates, Salade, Concombre
-- Frites: Classic 10mm 5kg, Allumettes 7mm 5kg, Ondulées
-- Boissons: Eau plate/gazeuse, Soda
+const CATALOG_CONTEXT = `
+CATALOGUE DISTRAM — Grossiste alimentaire halal (98 références) :
+VIANDES : Broche kebab bœuf/veau 10kg (75€), 15kg (105€), Poulet 10kg (68€), Filet poulet 5kg (32€), Viande hachée 5kg (28€), Merguez 2kg (18.50€)
+PAINS : Pita 16cm x100 (18€), Pita 20cm x80 (22€), Galette durum 30cm x72 (20€)
+SAUCES : Kebab 10L (25€), Blanche 10L (22€), Harissa 10L (18€), Tacos 10L (24€)
+FROMAGES : Edam tranches 1kg (8.50€), Mozzarella râpée 2kg (11€), Fromage fondu burger 1kg (9€)
+LÉGUMES : Chou blanc (4€), Oignons 5kg (6€), Tomates 5kg (8€), Salade iceberg (5€)
+FRITES : Classic 10mm 5kg×4 (28€), Allumettes 7mm 5kg×4 (30€), Ondulées (26€)
+BOISSONS : Eau 1.5L×6 (4€), Soda 33cl×24 (12€)
 `;
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const messages: UIMessage[] = body.messages ?? [];
-    const userId: string | undefined = body.userId;
-    const clientContext: unknown = body.clientContext;
+    const body = (await req.json()) as {
+      messages: ModelMessage[];
+      userId?: string;
+      clientContext?: Record<string, unknown>;
+    };
+
+    const { messages, userId, clientContext } = body;
 
     const systemPrompt = `Tu es un assistant commercial expert pour DISTRAM, grossiste alimentaire halal.
-Tu aides les restaurants (kebabs, tacos, pizzerias, burgers) à passer leurs commandes et trouver les bons produits.
+Tu aides les restaurants (kebabs, tacos, pizzerias, burgers) à commander et trouver les bons produits.
 
-${CATALOG_SUMMARY}
+${CATALOG_CONTEXT}
 
 ${clientContext ? `Contexte client: ${JSON.stringify(clientContext)}` : ''}
 
-Réponds toujours en français. Sois concis et professionnel.
-Si le client demande des prix, donne les tarifs DISTRAM.
-Si tu suggères des produits, propose des quantités réalistes pour une semaine.
-`;
+Règles :
+- Réponds toujours en français, sois concis et professionnel
+- Si le client demande des prix, donne les tarifs DISTRAM ci-dessus
+- Propose des quantités réalistes pour une semaine selon le type de restaurant
+- Si tu détectes un besoin, propose des produits complémentaires`;
 
-    const modelMessages = await convertToModelMessages(messages);
-    const lastUserMessage = messages.findLast((m) => m.role === 'user');
-    const lastUserText =
-      lastUserMessage?.parts.find((p) => p.type === 'text')?.text ?? '';
+    // Primary: Gemini 2.5 Flash-Lite (chat libre, streaming)
+    // Fallback: gpt-4o-mini si Gemini indisponible
+    let result;
+    try {
+      result = streamText({
+        model: googleProvider('gemini-2.5-flash-lite-preview-06-17'),
+        system: systemPrompt,
+        messages,
+        maxOutputTokens: 1000,
+        onFinish: async ({ text, usage }) => {
+          await logAICall(
+            'assistant-client',
+            'gemini-2.5-flash-lite',
+            (messages[messages.length - 1]?.content as string) ?? '',
+            text,
+            { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+            userId
+          ).catch(() => {});
+        },
+      });
+    } catch {
+      // Fallback to gpt-4o-mini
+      result = streamText({
+        model: openaiProvider('gpt-4o-mini'),
+        system: systemPrompt,
+        messages,
+        maxOutputTokens: 1000,
+        onFinish: async ({ text, usage }) => {
+          await logAICall(
+            'assistant-client-fallback',
+            'gpt-4o-mini',
+            (messages[messages.length - 1]?.content as string) ?? '',
+            text,
+            { input: usage.inputTokens ?? 0, output: usage.outputTokens ?? 0 },
+            userId
+          ).catch(() => {});
+        },
+      });
+    }
 
-    const result = streamText({
-      model: openaiProvider('gpt-4o'),
-      system: systemPrompt,
-      messages: modelMessages,
-      maxOutputTokens: 1000,
-      onFinish: async ({ text, usage }) => {
-        await logAICall(
-          'assistant-commercial',
-          'gpt-4o',
-          lastUserText,
-          text,
-          {
-            input: usage.inputTokens ?? 0,
-            output: usage.outputTokens ?? 0,
-          },
-          userId
-        );
-      },
-    });
-
-    return result.toUIMessageStreamResponse();
-  } catch (error) {
-    console.error('Assistant API error:', error);
-    return new Response('Erreur interne', { status: 500 });
+    return result.toTextStreamResponse();
+  } catch {
+    return new Response(
+      JSON.stringify({
+        error:
+          'Service temporairement indisponible. Réessayez dans quelques secondes.',
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }

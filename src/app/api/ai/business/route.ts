@@ -1,58 +1,92 @@
 import { generateText } from 'ai';
+import { googleProvider } from '@/services/ai/gemini-service';
 import { openaiProvider } from '@/services/ai/openai-service';
 import { logAICall } from '@/services/ai/langfuse-client';
 import { NextRequest, NextResponse } from 'next/server';
 
+interface BusinessKPIs {
+  caMois?: number;
+  commandesSemaine?: number;
+  clientsActifs?: number;
+  clientsARisque?: number;
+  livraisonsEnCours?: number;
+  panierMoyen?: number;
+  tauxConversion?: number;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { kpis, depot, period, userId } = await req.json();
+    const body = (await req.json()) as {
+      kpis: BusinessKPIs;
+      depot?: string;
+      period?: string;
+      userId?: string;
+    };
 
-    const kpisData = kpis as Record<string, unknown>;
+    const { kpis, depot, period, userId } = body;
 
-    const prompt = `Analyse ces KPIs business pour DISTRAM (${depot ?? 'tous dépôts'}) - Période: ${period ?? 'cette semaine'}:
+    const prompt = `Analyse ces KPIs business pour DISTRAM (${depot ?? 'tous dépôts'}) — Période: ${period ?? 'cette semaine'}:
 
-CA total: ${kpisData.caMois ?? 0}€
-Commandes: ${kpisData.commandesSemaine ?? 0}
-Clients actifs: ${kpisData.clientsActifs ?? 0}
-Clients à risque: ${kpisData.clientsARisque ?? 0}
-Livraisons en cours: ${kpisData.livraisonsEnCours ?? 0}
-Panier moyen: ${kpisData.panierMoyen ?? 0}€
-Taux conversion: ${kpisData.tauxConversion ?? 0}%
+CA mensuel: ${kpis.caMois ?? 0}€
+Commandes semaine: ${kpis.commandesSemaine ?? 0}
+Clients actifs: ${kpis.clientsActifs ?? 0}
+Clients à risque: ${kpis.clientsARisque ?? 0}
+Livraisons en cours: ${kpis.livraisonsEnCours ?? 0}
+Panier moyen: ${kpis.panierMoyen ?? 0}€
+Taux conversion: ${kpis.tauxConversion ?? 0}%
 
 Génère:
-1. Un résumé exécutif en 3 points clés
+1. Résumé exécutif en 3 points clés
 2. 2-3 anomalies ou tendances à surveiller
-3. 3 actions prioritaires recommandées pour cette semaine
-4. Prévision CA semaine suivante basée sur les tendances
+3. 3 actions prioritaires pour cette semaine
+4. Prévision CA semaine suivante
 
 Réponds en français, sois concis et actionnable.`;
 
-    const { text, usage } = await generateText({
-      model: openaiProvider('gpt-4o-mini'),
-      prompt,
-      maxOutputTokens: 800,
-    });
+    let text: string;
+    let model: string;
 
-    await logAICall(
-      'business-analyst',
-      'gpt-4o-mini',
-      prompt,
-      text,
-      {
-        input: usage.inputTokens ?? 0,
-        output: usage.outputTokens ?? 0,
-      },
-      userId as string | undefined
-    );
+    try {
+      const result = await generateText({
+        model: googleProvider('gemini-2.5-flash-lite-preview-06-17'),
+        prompt,
+        maxOutputTokens: 800,
+      });
+      text = result.text;
+      model = 'gemini-2.5-flash-lite';
+
+      await logAICall(
+        'business-analyst',
+        model,
+        prompt,
+        text,
+        {
+          input: result.usage.inputTokens ?? 0,
+          output: result.usage.outputTokens ?? 0,
+        },
+        userId
+      ).catch(() => {});
+    } catch {
+      const result = await generateText({
+        model: openaiProvider('gpt-4o-mini'),
+        prompt,
+        maxOutputTokens: 800,
+      });
+      text = result.text;
+      model = 'gpt-4o-mini-fallback';
+    }
 
     return NextResponse.json({
       analysis: text,
+      model,
       generatedAt: new Date().toISOString(),
     });
-  } catch (error) {
-    console.error('Business API error:', error);
+  } catch {
     return NextResponse.json(
-      { error: 'Erreur analyse business' },
+      {
+        error:
+          'Analyse temporairement indisponible. Réessayez dans quelques instants.',
+      },
       { status: 500 }
     );
   }
