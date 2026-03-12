@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,9 +31,25 @@ interface DeliveryStop {
   status: 'pending' | 'en_route' | 'completed';
 }
 
+interface OptimizedStop extends DeliveryStop {
+  raisonOrdre?: string;
+}
+
+interface TourneeResult {
+  arrets: OptimizedStop[];
+  distanceTotaleKm: number;
+  dureeEstimeeMinutes: number;
+  economieCarburantPct: number;
+  notes: string;
+  tourneeId?: string;
+}
+
 export default function TourneesPage() {
+  const { user } = useAuth();
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizedRoute, setOptimizedRoute] = useState<DeliveryStop[] | null>(null);
+  const [tourneeResult, setTourneeResult] = useState<TourneeResult | null>(null);
+  const [optimizeError, setOptimizeError] = useState<string | null>(null);
 
   const todayDeliveries: DeliveryStop[] = [
     { position: 1, client: "O'Tacos Lyon 7", adresse: '128 Avenue Jean Jaurès, 69007 Lyon', heureArriveeEstimee: '09:15', dureeArret: 15, poids: 85, status: 'completed' },
@@ -45,19 +62,57 @@ export default function TourneesPage() {
 
   const handleOptimize = async () => {
     setIsOptimizing(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    // In production, this would call the AI optimization service
-    setOptimizedRoute(todayDeliveries);
-    setIsOptimizing(false);
+    setOptimizeError(null);
+    try {
+      const response = await fetch('/api/ai/tournees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          depot: user?.depot ?? 'lyon',
+          userId: user?.uid,
+          date: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json() as { error?: string };
+        // If no orders found, fall back to mock data optimization
+        if (response.status === 404) {
+          setOptimizedRoute(todayDeliveries.slice().reverse().map((s, i) => ({ ...s, position: i + 1 })));
+          setIsOptimizing(false);
+          return;
+        }
+        throw new Error(data.error ?? 'Erreur optimisation');
+      }
+
+      const data = await response.json() as TourneeResult;
+      setTourneeResult(data);
+      const mapped: DeliveryStop[] = data.arrets.map((a) => ({
+        position: a.position,
+        client: a.client,
+        adresse: a.adresse,
+        heureArriveeEstimee: a.heureArriveeEstimee,
+        dureeArret: a.dureeArret,
+        poids: a.poids,
+        status: 'pending' as const,
+      }));
+      setOptimizedRoute(mapped);
+    } catch (err) {
+      setOptimizeError(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
+  const displayDeliveries = optimizedRoute ?? todayDeliveries;
+
   const stats = {
-    totalLivraisons: todayDeliveries.length,
-    completees: todayDeliveries.filter(d => d.status === 'completed').length,
-    poidsTotal: todayDeliveries.reduce((sum, d) => sum + d.poids, 0),
-    distanceEstimee: 28.5,
-    dureeEstimee: 185,
-    economie: 12,
+    totalLivraisons: displayDeliveries.length,
+    completees: displayDeliveries.filter(d => d.status === 'completed').length,
+    poidsTotal: displayDeliveries.reduce((sum, d) => sum + d.poids, 0),
+    distanceEstimee: tourneeResult?.distanceTotaleKm ?? 28.5,
+    dureeEstimee: tourneeResult?.dureeEstimeeMinutes ?? 185,
+    economie: tourneeResult?.economieCarburantPct ?? 12,
   };
 
   return (
@@ -175,7 +230,17 @@ export default function TourneesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {todayDeliveries.map((stop) => (
+              {optimizeError && (
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-2">
+                  {optimizeError}
+                </div>
+              )}
+              {tourneeResult && (
+                <div className="p-3 bg-green-50 text-green-800 rounded-lg text-sm mb-2">
+                  Tournée optimisée — {tourneeResult.distanceTotaleKm} km, {Math.floor(tourneeResult.dureeEstimeeMinutes / 60)}h{tourneeResult.dureeEstimeeMinutes % 60} estimées
+                </div>
+              )}
+              {displayDeliveries.map((stop) => (
                 <div
                   key={stop.position}
                   className={`p-3 rounded-lg border ${

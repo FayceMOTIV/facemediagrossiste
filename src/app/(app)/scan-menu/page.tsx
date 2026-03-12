@@ -6,6 +6,9 @@ import Header from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { useOrders } from '@/hooks/useOrders';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Camera,
   Upload,
@@ -19,7 +22,8 @@ import {
   Zap,
   Package,
   ChefHat,
-  Store
+  Store,
+  X
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
@@ -68,12 +72,18 @@ const SCAN_API_URL = 'https://us-central1-facemediagrossiste.cloudfunctions.net/
 
 export default function ScanMenuPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { createOrder } = useOrders();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'produits' | 'emballages'>('produits');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [clientNom, setClientNom] = useState('');
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -154,7 +164,50 @@ export default function ScanMenuPage() {
 
   const handleCreateOrder = () => {
     if (!result) return;
-    // TODO: implement order creation from scan result
+    setShowOrderModal(true);
+  };
+
+  const confirmCreateOrder = async () => {
+    if (!result || !clientId.trim() || !clientNom.trim()) return;
+    setIsCreatingOrder(true);
+    try {
+      const allItems = [
+        ...result.produitsRecommandes,
+        ...result.emballagesRecommandes,
+      ];
+      const items = allItems.map((p) => ({
+        productId: p.ref,
+        productRef: p.ref,
+        productNom: p.nom,
+        quantite: p.quantite,
+        prixUnitaire: p.prixUnitaire,
+        prixTotal: p.totalHT,
+      }));
+
+      const now = new Date();
+      const numero = `CMD-SCAN-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(Math.random() * 9000) + 1000}`;
+
+      await createOrder({
+        numero,
+        clientId: clientId.trim(),
+        clientNom: clientNom.trim(),
+        items,
+        totalHT: result.totalHT,
+        remise: 0,
+        totalTTC: result.totalTTC,
+        status: 'brouillon',
+        commercial: user?.displayName ?? user?.email ?? '',
+        depot: user?.depot ?? 'lyon',
+        notes: `Commande générée depuis Scan Menu — ${result.platsDetectes.length} plats détectés`,
+      } as Parameters<typeof createOrder>[0]);
+
+      setShowOrderModal(false);
+      router.push('/commandes');
+    } catch {
+      // leave modal open on error
+    } finally {
+      setIsCreatingOrder(false);
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -561,6 +614,76 @@ export default function ScanMenuPage() {
           </>
         )}
       </div>
+
+      {/* Order creation modal */}
+      {showOrderModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">Créer une commande</h2>
+              <button
+                onClick={() => setShowOrderModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {result && (
+                <div className="bg-orange-50 rounded-lg p-4 text-sm text-orange-800">
+                  <p className="font-medium mb-1">Résumé de la commande</p>
+                  <p>{result.produitsRecommandes.length} produits + {result.emballagesRecommandes.length} emballages</p>
+                  <p className="font-bold mt-1">Total TTC : {result.totalTTC.toFixed(2)} €</p>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ID Client *
+                </label>
+                <Input
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="ex: client_123abc"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nom du client *
+                </label>
+                <Input
+                  value={clientNom}
+                  onChange={(e) => setClientNom(e.target.value)}
+                  placeholder="ex: Kebab Istanbul"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowOrderModal(false)}
+                disabled={isCreatingOrder}
+              >
+                Annuler
+              </Button>
+              <Button
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                onClick={confirmCreateOrder}
+                disabled={isCreatingOrder || !clientId.trim() || !clientNom.trim()}
+              >
+                {isCreatingOrder ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Confirmer
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

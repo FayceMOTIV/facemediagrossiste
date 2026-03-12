@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "DISTRAM Livreur",
+    "slug": "distram-livreur",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#16a34a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.distram.livreur",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "DISTRAM Livreur utilise votre localisation pour le suivi des livraisons.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "DISTRAM Livreur utilise votre localisation en arrière-plan pour le suivi temps réel.",
+        "NSCameraUsageDescription": "DISTRAM Livreur utilise la caméra pour photographier les preuves de livraison."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#16a34a"
+      },
+      "package": "com.distram.livreur",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "DISTRAM Livreur utilise votre localisation pour le suivi des livraisons."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#16a34a"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "DISTRAM Livreur utilise la caméra pour les preuves de livraison."
+        }
+      ]
+    ],
+    "scheme": "distram-livreur",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "distram-livreur"
+      }
+    }
+  }
+}
