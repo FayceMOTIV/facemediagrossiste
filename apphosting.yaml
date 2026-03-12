@@ -10,3 +10,55 @@ env:
     value: production
   - variable: NEXT_TELEMETRY_DISABLED
     value: "1"
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyDM1_3paoGgWcYeigelNbmqWe8HYnMl0HU
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: facemediagrossiste.firebaseapp.com
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: facemediagrossiste
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: facemediagrossiste.firebasestorage.app
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "438382764308"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:438382764308:web:96e36619f2d1f56f6ce201"
+  - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    value: https://facemediagrossiste-default-rtdb.europe-west1.firebasedatabase.app
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    value: BEW_1xWNy5tc2w_RVJEnc46ho1YrrPFvHwRj8vG2e39_9-7hFe1Gw-pVthbBl1oj2CjBLZKcDDGxyhh_kH5xJaI
+  - variable: NEXT_PUBLIC_SENTRY_DSN
+    value: https://21967f2a37759b3bbdcf42cefbff71c6@o4511030635331584.ingest.de.sentry.io/4511030639329360
+  - variable: NEXT_PUBLIC_POSTHOG_KEY
+    value: phc_7Y8Z0RX1Ej247wgO2t8JoSyKhVPt2MrJQSSLdIom11T
+  - variable: SMTP_HOST
+    value: smtp-relay.brevo.com
+  - variable: SMTP_PORT
+    value: "587"
+  - variable: SMTP_FROM
+    value: noreply@distram.fr
+  - variable: LANGFUSE_BASEURL
+    value: https://cloud.langfuse.com
+  - variable: SENTRY_ORG
+    value: distram
+  - variable: SENTRY_PROJECT
+    value: javascript-nextjs
+  - variable: GOOGLE_GENERATIVE_AI_API_KEY
+    secret: GOOGLE_GENERATIVE_AI_API_KEY
+  - variable: OPENAI_API_KEY
+    secret: OPENAI_API_KEY
+  - variable: FIREBASE_PROJECT_ID
+    secret: FIREBASE_PROJECT_ID
+  - variable: FIREBASE_CLIENT_EMAIL
+    secret: FIREBASE_CLIENT_EMAIL
+  - variable: FIREBASE_PRIVATE_KEY
+    secret: FIREBASE_PRIVATE_KEY
+  - variable: SMTP_USER
+    secret: SMTP_USER
+  - variable: SMTP_PASS
+    secret: SMTP_PASS
+  - variable: LANGFUSE_PUBLIC_KEY
+    secret: LANGFUSE_PUBLIC_KEY
+  - variable: LANGFUSE_SECRET_KEY
+    secret: LANGFUSE_SECRET_KEY
+  - variable: SENTRY_AUTH_TOKEN
+    secret: SENTRY_AUTH_TOKEN
