@@ -1,6 +1,6 @@
 /**
  * Script de seed Firestore — données de démo DISTRAM
- * Usage: npx ts-node -r tsconfig-paths/register scripts/seed-firestore.ts
+ * Usage: npx tsx scripts/seed-firestore.ts
  * Prérequis: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY dans .env.local
  *            scripts/create-users.ts doit avoir été exécuté avant
  */

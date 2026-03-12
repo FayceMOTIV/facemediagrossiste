@@ -1,6 +1,6 @@
 /**
  * Script de création des comptes utilisateurs DISTRAM
- * Usage: npx ts-node -r tsconfig-paths/register scripts/create-users.ts
+ * Usage: npx tsx scripts/create-users.ts
  * Prérequis: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY dans .env.local
  */
 
